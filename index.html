@@ -1,0 +1,2432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base target="_top">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<style>
+/* Custom styles for a cleaner look */
+body { font-family: 'Roboto', sans-serif; }
+.completed-row { background-color: #f1f5f9; color: #94a3b8; }
+.completed-row select, .completed-row input, .completed-row button { opacity: 0.6; }
+.completed-row .btn-undo { opacity: 1; pointer-events: auto; }
+.btn-save-success { background-color: #48bb78 !important; }
+.btn-save-error { background-color: #f56565 !important; }
+.tab-active { border-color: #6366f1; color: #4f46e5; }
+.tab-inactive { border-color: transparent; color: #6b7280; }
+.tab-inactive:hover { border-color: #d1d5db; color: #4b5563; }
+.btn-delete-confirm { background-color: #b91c1c !important; }
+.dropdown-check-list { display: inline-block; position: relative; }
+.dropdown-check-list .anchor { position: relative; cursor: pointer; display: inline-block; padding: 5px 50px 5px 15px; border: 1px solid #ccc; min-width: 300px; background-color: white; border-radius: 0.375rem; height: 38px; line-height: 26px; }
+.dropdown-check-list .anchor:after { position: absolute; content: ""; border-left: 2px solid black; border-top: 2px solid black; padding: 5px; right: 15px; top: 35%; transform: rotate(-135deg); }
+.dropdown-check-list ul.items { padding: 2px; display: none; margin: 0; border: 1px solid #ccc; border-top: none; position: absolute; background-color: white; z-index: 10; max-height: 15rem; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-radius: 0 0 0.375rem 0.375rem; width: 100%; box-sizing: border-box; left: 0; top: 100%; }
+.dropdown-check-list ul.items li { list-style: none; }
+.dropdown-check-list ul.items li label { display: block; padding: 8px 12px; cursor: pointer; }
+.dropdown-check-list ul.items li:hover { background-color: #f3f4f6; }
+.dropdown-check-list ul.items li label input { margin-right: 8px; }
+td { vertical-align: top; padding-top: 1rem; padding-bottom: 1rem; }
+.kpi-card { background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1.5rem; text-align: center; cursor: pointer; transition: transform 0.2s; }
+.kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+.kpi-value { font-size: 2.25rem; font-weight: bold; color: #2B5797; line-height: 1; }
+.kpi-label { margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280; font-weight: 500; }
+#workload-chart-container { height: 400px; width: 100%; margin-top: 24px; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); padding: 20px; }
+#kpi-display-area { display: grid !important; grid-template-columns: repeat(1, minmax(0, 1fr)) !important; gap: 1.5rem !important; }
+@media (min-width: 640px) { #kpi-display-area { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (min-width: 1024px) { #kpi-display-area { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (min-width: 1280px) { #kpi-display-area { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+</style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+<div class="container mx-auto p-4 md:p-8">
+<header class="mb-6 p-6 rounded-lg shadow-md" style="background-color: #2B5797;">
+<div class="flex justify-between items-center relative">
+<div class="absolute left-0 top-0">
+<button id="refresh-btn" onclick="loadAppData()" class="bg-white text-gray-700 py-2 px-4 rounded-md border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 flex items-center">
+<svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+<path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.224 4.344l-1.423 1.423A7.5 7.5 0 0018 12.5a7.5 7.5 0 00-2.688-5.576l-1.423 1.423a5.5 5.5 0 011.423 3.077zM4.688 8.576a5.5 5.5 0 019.224-4.344l1.423-1.423A7.5 7.5 0 002 7.5a7.5 7.5 0 002.688 5.576l1.423-1.423A5.5 5.5 0 014.688 8.576z" clip-rule="evenodd" /></svg>
+<span>Refresh</span>
+</button>
+<div id="last-refreshed-time" class="text-xs text-gray-200 mt-1 pl-1"></div> </div>
+<div class="flex-grow text-center">
+<h1 class="text-3xl font-bold text-white">Data & MI Workflow Management</h1>
+<p class="text-gray-200">Manage and assign workflow tasks. With user management tools and the ability to create and assign new work requests.</p>
+</div>
+<div class="flex items-center gap-4 absolute right-0">
+<img src="https://via.placeholder.com/150x50?text=Company+Logo" alt="Company Logo" class="h-12">
+</div>
+</div>
+</header>
+
+<div class="mb-4 border-b border-gray-200">
+<nav class="-mb-px flex space-x-8" aria-label="Tabs">
+<button onclick="showTab('workflow')" id="tab-workflow" class="tab-active whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm">Workflow</button>
+<button onclick="showTab('complete')" id="tab-complete" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">Complete</button>
+<button onclick="showTab('kpi')" id="tab-kpi" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">KPIs</button>
+<button onclick="showTab('future')" id="tab-future" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm">Future Queue</button>
+<button onclick="showTab('key-info')" id="tab-key-info" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm">Key Info Dashboard</button>
+<button onclick="showTab('schedule-management')" id="tab-schedule-management" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">Schedule Management</button>
+<button onclick="showTab('report-url-management')" id="tab-report-url-management" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">Report URL Management</button>
+<button onclick="showTab('user-management')" id="tab-user-management" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">User Management</button>
+<button onclick="showTab('log')" id="tab-log" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">Log</button>
+<button onclick="showTab('form')" id="tab-form" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm" style="display: none;">Workflow Creation Form</button>
+<button onclick="showTab('useful-links')" id="tab-useful-links" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium font-bold text-sm">Useful Links</button>
+</nav>
+</div>
+
+<div id="workflow-content">
+<div class="mb-4 p-4 bg-gray-100 rounded-lg flex flex-wrap items-center gap-y-4">
+    <div id="admin-filter-container" class="hidden inline-block">
+        <label for="user-filter" class="font-semibold text-gray-700 mr-2" style="vertical-align: middle;">Filter by User:</label>
+        <div id="user-filter" class="dropdown-check-list inline-block relative" tabindex="100" style="vertical-align: middle;">
+            <span class="anchor border border-gray-300 rounded inline-block">Select Users</span>
+            <ul id="user-filter-list" class="items"></ul>
+        </div>
+    </div>
+    <div id="completion-filter-wrapper" class="inline-block">
+        <label for="completion-filter" class="font-semibold text-gray-700 mr-2" style="vertical-align: middle;">Show Tasks:</label>
+        <select id="completion-filter" class="border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" style="height: 38px; padding-left: 0.5rem; padding-right: 2rem; vertical-align: middle;">
+            <option value="hide">Outstanding Only</option>
+            <option value="all" selected>Show All</option> <option value="completed_only">Completed Only</option>
+        </select>
+    </div>
+</div>
+<div id="active-users-section" class="hidden mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+<h3 class="font-semibold text-blue-800 mb-2">Other Active Users:</h3>
+<div id="active-users-list" class="flex flex-wrap gap-2"><span class="text-blue-700">Loading...</span></div>
+</div>
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+<div id="loader" class="p-8 text-center text-gray-500">Loading report data...</div>
+<div class="overflow-x-auto">
+<table id="report-table" class="min-w-full hidden">
+<thead class="border-b border-gray-200" style="background-color: #2B5797;">
+<tr>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report/Project Name</th> <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Allocated To</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Next Run Date</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Due Time</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Link To Process Notes</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Link To Report</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Comments</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">RAG</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Status</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Actions</th>
+</tr>
+</thead>
+<tbody id="table-body" class="divide-y divide-gray-200"></tbody>
+</table>
+</div>
+</main>
+</div>
+
+<div id="complete-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div id="complete-loader" class="p-8 text-center text-gray-500">Loading completed reports...</div>
+    <div id="complete-filter-controls" class="p-4 hidden"></div>
+    <div class="overflow-x-auto">
+        <table id="complete-table" class="min-w-full hidden">
+            <thead class="border-b border-gray-200" style="background-color: #2B5797;">
+                <tr>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report Name</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Completed By</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report Type</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Status</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Due Time</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Completed DateTime</th>
+                </tr>
+            </thead>
+            <tbody id="complete-table-body" class="divide-y divide-gray-200"></tbody>
+        </table>
+    </div>
+</main>
+</div>
+
+<div id="key-info-content" class="hidden">
+    <main class="bg-gray-100 p-6 space-y-8">
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="p-4 bg-blue-800 border-b border-blue-900">
+                <h3 class="text-lg font-bold text-white">Demand Overview</h3>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="min-w-full text-sm text-left" id="table-demand"></table>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="p-4 bg-green-700 border-b border-green-800">
+                <h3 class="text-lg font-bold text-white">DSV Delivery</h3>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="min-w-full text-sm text-left" id="table-dsv"></table>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="p-4 bg-purple-700 border-b border-purple-800">
+                <h3 class="text-lg font-bold text-white">Certificate Ingestion</h3>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="min-w-full text-sm text-left" id="table-certs"></table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="kpi-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">Key Performance Indicators</h2>
+    <div id="kpi-loader" class="p-8 text-center text-gray-500">Loading KPIs...</div>
+    <div id="kpi-display-area" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div class="kpi-card"> <div id="kpi-due-today" class="kpi-value">-</div> <div class="kpi-label">Reports Due Today</div> </div>
+        <div class="kpi-card"> <div id="kpi-completed-today" class="kpi-value">-</div> <div class="kpi-label">Reports Completed Today</div> </div>
+        <div class="kpi-card"> <div id="kpi-completion-rate" class="kpi-value">-</div> <div class="kpi-label">Completion Rate (%) Today</div> </div>
+        <div class="kpi-card"> <div id="kpi-outstanding-today" class="kpi-value">-</div> <div class="kpi-label">Outstanding Reports Today</div> </div>
+        <div class="kpi-card"> <div id="kpi-active-projects" class="kpi-value">-</div> <div class="kpi-label">Active Projects (in Workflow)</div> </div>
+        <div class="kpi-card"> <div id="kpi-otd-rate" class="kpi-value">-</div> <div class="kpi-label">Daily OTD Rate (%)</div> </div>
+        <div class="kpi-card"> <div id="kpi-avg-cycle-time" class="kpi-value">-</div> <div class="kpi-label">Avg. Project Cycle Time (Days)</div> </div>
+        <div class="kpi-card"> <div id="kpi-avg-wip-user" class="kpi-value">-</div> <div class="kpi-label">Avg. Active Load</div> </div>
+        <div class="kpi-card"> <div id="kpi-avg-team-load" class="kpi-value">-</div> <div class="kpi-label">Avg. Team Load</div> </div>
+        <div class="kpi-card"> <div id="kpi-queue-backlog" class="kpi-value">-</div> <div class="kpi-label">Future Queue/Backlog Size</div> </div>
+        <div class="kpi-card"> <div id="kpi-project-completion-rate" class="kpi-value">-</div> <div class="kpi-label">Project Completion Rate (%)</div> </div>
+        <div class="kpi-card"> <div id="kpi-historic-projects" class="kpi-value">-</div> <div class="kpi-label">Historic Projects (Completed & Past Due)</div> </div>
+        <div class="kpi-card"> <div id="kpi-unassigned-today" class="kpi-value">-</div> <div class="kpi-label">Unassigned Tasks (Today)</div> </div>
+    </div>
+    <div id="workload-chart-container">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4 text-left">Current Workload Distribution</h3>
+        <div id="user-workload-chart" style="height: 350px;">Loading Chart...</div>
+    </div>
+    <div id="otd-chart-container" class="hidden" style="height: 400px; width: 100%; margin-top: 24px; background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); padding: 20px;">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4 text-left">Daily On-Time Delivery (Today's Completions)</h3>
+        <div id="otd-pie-chart" style="height: 350px;">Loading Chart...</div>
+    </div>
+</main>
+</div>
+
+<div id="future-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="p-4 bg-blue-50 border-b border-blue-200">
+        <h3 class="text-lg font-medium text-blue-800">Future Queue</h3>
+        <p class="text-blue-700 max-w-2xl">Reports scheduled to run in the future.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="border-b border-gray-200" style="background-color: #2B5797;">
+                <tr>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Next Run Date</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report Name</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Allocated To</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Frequency</th>
+                </tr>
+            </thead>
+            <tbody id="future-table-body" class="divide-y divide-gray-200"></tbody>
+        </table>
+    </div>
+</main>
+</div>
+
+<div id="form-content" class="hidden">
+<div class="bg-white rounded-lg shadow-md overflow-hidden">
+    <iframe src="https://example.com/placeholder-form" width="100%" height="900" frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+</div>
+</div>
+
+<div id="useful-links-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="p-4 bg-blue-50 border-b border-blue-200">
+        <h3 class="text-lg font-medium text-blue-800">Useful Links</h3>
+        <p class="text-blue-700 max-w-2xl">A central list of important links. All users can add, edit, and delete.</p>
+    </div>
+    <div id="useful-links-loader" class="p-8 text-center text-gray-500">Loading links...</div>
+    <div class="overflow-x-auto">
+        <table id="useful-links-table" class="min-w-full hidden table-fixed">
+            <thead class="border-b border-gray-200" style="background-color: #2B5797;">
+                <tr>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white w-1/3">Link Name</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">URL (Click to open, edit below)</th>
+                    <th class="p-4 text-left text-sm font-bold tracking-wider text-white w-48">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="useful-links-table-body" class="divide-y divide-gray-200"></tbody>
+        </table>
+    </div>
+    <div class="p-4 bg-gray-50 border-t border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Add New Link</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" id="new-link-name" placeholder="Link Name (e.g., Google)" class="flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <input type="text" id="new-link-url" placeholder="Full URL (e.g., https://www.google.com)" class="flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <button onclick="addUsefulLinkHandler(this)" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Add New Link</button>
+        </div>
+    </div>
+</main>
+</div>
+
+<div id="user-management-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+<div id="user-loader" class="p-8 text-center text-gray-500">Loading users...</div>
+<div id="user-management-area" class="hidden">
+<div class="overflow-x-auto">
+<table id="user-table" class="min-w-full">
+<thead class="border-b border-gray-200" style="background-color: #2B5797;">
+<tr>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">User Email</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Role</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Actions</th>
+</tr>
+</thead>
+<tbody id="user-table-body" class="divide-y divide-gray-200"></tbody>
+</table>
+</div>
+<div class="p-4 bg-gray-50 border-t border-gray-200">
+<h3 class="text-lg font-medium text-gray-900 mb-2">Add New User</h3>
+<div class="flex items-center space-x-4">
+<input type="email" id="new-user-email" placeholder="new.user@example.com" class="flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+<select id="new-user-role" class="p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+<option value="">User</option>
+<option value="Admin">Admin</option>
+</select>
+<button onclick="addUserHandler(this)" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Add User</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+<div id="log-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="p-4 bg-blue-50 border-b border-blue-200">
+        <h3 class="text-lg font-medium text-blue-800">Admin Action Log</h3>
+        <p class="text-blue-700 max-w-2xl">A read-only log of critical actions taken in the app. Updates may lag by up to 5 minutes.</p>
+    </div>
+    <iframe src="https://example.com/placeholder-log" width="100%" style="height: 800px; border: none;" frameborder="0" id="log-iframe">Loading log...</iframe>
+</main>
+</div>
+
+<div id="schedule-management-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+<div class="p-4 bg-blue-50 border-b border-blue-200 flex justify-between items-center">
+<div>
+<h3 class="text-lg font-medium text-blue-800">Manage Report Cover</h3>
+<p class="text-blue-700 max-w-2xl">Set temporary user overrides and date ranges.</p>
+</div>
+<div>
+<button id="apply-schedule-changes-btn" onclick="applyDailyAllocation()" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center">
+<svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.183m-4.99-4.992v4.992m0 0h-4.992" /></svg>
+<span>Apply Changes Now</span>
+</button>
+</div>
+</div>
+
+<div class="p-4 bg-gray-50 border-b border-gray-200">
+<label for="schedule-user-filter" class="font-semibold text-gray-700 mr-2">Filter by Current Allocation:</label>
+<div id="schedule-user-filter" class="dropdown-check-list inline-block relative" tabindex="101">
+<span class="anchor border border-gray-300 rounded inline-block">Select Users</span>
+<ul id="schedule-user-filter-list" class="items"></ul>
+</div>
+</div>
+<div id="schedule-loader" class="p-8 text-center text-gray-500">Loading schedule...</div>
+<div class="overflow-x-auto">
+<table id="schedule-table" class="min-w-full hidden">
+<thead class="border-b border-gray-200" style="background-color: #2B5797;">
+<tr>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report Name</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Default User</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Frequency</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Run Day</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Next Run Date</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Override User (Cover)</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Override Start</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Override End</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white">Actions</th>
+</tr>
+</thead>
+<tbody id="schedule-table-body" class="divide-y divide-gray-200"></tbody>
+</table>
+</div>
+</main>
+</div>
+
+<div id="report-url-management-content" class="hidden">
+<main class="bg-white rounded-lg shadow-md overflow-hidden">
+<div class="p-4 bg-blue-50 border-b border-blue-200">
+  <h3 class="text-lg font-medium text-blue-800">Report URL Management</h3>
+  <p class="text-blue-700 max-w-2xl">Update the Report URL</p>
+</div>
+<div id="report-url-loader" class="p-8 text-center text-gray-500">Loading all reports...</div>
+<div class="overflow-x-auto">
+<table id="report-url-table" class="min-w-full hidden table-fixed">
+   <thead class="border-b border-gray-200" style="background-color: #2B5797;">
+  <tr>
+    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Report Name</th>
+<th class="p-4 text-left text-sm font-bold tracking-wider text-white w-96 max-w-96">New URL</th>
+    <th class="p-4 text-left text-sm font-bold tracking-wider text-white">Actions</th>
+  </tr>
+</thead>
+  <tbody id="report-url-table-body" class="divide-y divide-gray-200"></tbody>
+</table>
+</div>
+</main>
+</div>
+
+</div>
+
+<script>
+// --- Client-Side JavaScript ---
+var activityInterval;
+var currentUserInfo;
+var allReportsData = [];
+var allUsersData = [];
+var allScheduleDataGlobal = [];
+var userWorkload = {};
+var otdData = {};
+var inactivityTimer;
+var allUsefulLinksData = [];
+
+function formatEmailToName(email) {
+    if (!email || email.trim() === '') return '';
+    if (email.indexOf('@') === -1) return email;
+    const userName = email.split('@')[0];
+    const formattedName = userName.split('.').map(namePart => {
+        const cleanedPart = namePart.replace(/\d/g, '');
+        if (!cleanedPart) return '';
+        return cleanedPart.charAt(0).toUpperCase() + cleanedPart.slice(1);
+    }).join(' ').trim();
+    return formattedName || "Unknown User";
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    google.charts.load('current', {'packages':['corechart', 'bar']});
+    loadAppData();
+    setupInactivityTimer();
+    var completionFilter = document.getElementById('completion-filter');
+    if (completionFilter) {
+        completionFilter.addEventListener('change', function() {
+            populateTable(allUsersData, allReportsData, currentUserInfo);
+        });
+    }
+});
+
+window.addEventListener('beforeunload', function() { google.script.run.removeUserActivity(); });
+
+function setupInactivityTimer() {
+    resetInactivityTimer();
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach(function(eventName) {
+        document.addEventListener(eventName, resetInactivityTimer, true);
+    });
+}
+
+function resetInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(function() {
+        console.log("User inactive for 5 minutes. Refreshing data...");
+        loadAppData();
+    }, 300000);
+}
+
+function showTab(tabName) {
+    const sections = ['workflow', 'complete', 'kpi', 'form', 'user-management', 'schedule-management', 'report-url-management', 'useful-links', 'log','future','key-info'];
+    sections.forEach(id => {
+        var el = document.getElementById(id + '-content');
+        if (el) el.style.display = 'none';
+    });
+    document.querySelectorAll('nav button').forEach(function(tab) {
+        tab.classList.remove('tab-active');
+        tab.classList.add('tab-inactive');
+    });
+    var contentEl = document.getElementById(tabName + '-content');
+    if (contentEl) contentEl.style.display = 'block';
+    var activeTabButton = document.getElementById('tab-' + tabName);
+    if (activeTabButton) {
+        activeTabButton.classList.remove('tab-inactive');
+        activeTabButton.classList.add('tab-active');
+    }
+    if (tabName === 'kpi') {
+        if (google && google.visualization && google.visualization.arrayToDataTable) {
+            safeDrawCharts();
+        } else {
+            google.charts.setOnLoadCallback(safeDrawCharts);
+        }
+    }
+}
+
+function safeDrawCharts() {
+    try {
+        if (typeof userWorkload !== 'undefined' && userWorkload && Object.keys(userWorkload).length > 0) {
+            drawWorkloadChart(userWorkload);
+        } else {
+            var chartEl = document.getElementById('user-workload-chart');
+            if(chartEl) chartEl.innerHTML = '<p class="text-center text-gray-500">No active assigned tasks to chart.</p>';
+        }
+        if (typeof otdData !== 'undefined' && otdData && (otdData.onTime > 0 || otdData.late > 0)) {
+            drawOtdPieChart(otdData);
+        } else {
+            var otdEl = document.getElementById('otd-pie-chart');
+            if(otdEl) otdEl.innerHTML = '<p class="text-center text-gray-500">No daily reports completed today to chart.</p>';
+        }
+    } catch (e) { console.error("Error drawing charts:", e); }
+}
+
+function filterWorkflowByOtdStatus(status) {
+    if (!allReportsData || !currentUserInfo) return;
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayString = `${yyyy}-${mm}-${dd}`;
+
+    const filteredReports = allReportsData.filter(function(report) {
+        const isProject = report.frequency && report.frequency.trim().toLowerCase() === 'project';
+        if (isProject) return false;
+        if (!report.completedDate || !report.completedDate.startsWith(todayString) || !report.dueTime) return false;
+        const actualCompletionTime = timeToMinutes(report.completedDate.split(' ')[1]);
+        const dueTimeMinutes = timeToMinutes(report.dueTime);
+        const isLate = actualCompletionTime > dueTimeMinutes;
+        if (status === 'Late' && isLate) return true;
+        if (status === 'On-Time' && !isLate) return true;
+        return false;
+    });
+
+    showTab("workflow");
+    setTimeout(function() {
+        populateCompleteTable(filteredReports);
+        const filterContainer = document.getElementById('complete-filter-controls');
+        if (!filterContainer) return;
+        let clearBtn = document.getElementById('clear-kpi-filter-btn');
+        if (!clearBtn) {
+            clearBtn = document.createElement('button');
+            clearBtn.id = 'clear-kpi-filter-btn';
+            clearBtn.className = 'bg-gray-200 text-gray-800 py-1 px-3 rounded hover:bg-gray-300';
+            clearBtn.onclick = function() { populateCompleteTable(allReportsData); };
+            filterContainer.appendChild(clearBtn);
+        }
+        clearBtn.innerText = `Clear OTD Filter: ${status}`;
+        filterContainer.classList.remove('hidden');
+    }, 50);
+}
+
+function loadAppData() {
+    resetInactivityTimer();
+    var refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Refreshing...</span>';
+
+    ['loader', 'user-loader', 'schedule-loader', 'complete-loader', 'kpi-loader', 'report-url-loader', 'useful-links-loader'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
+    ['report-table', 'user-management-area', 'schedule-table', 'complete-table', 'kpi-display-area', 'workload-chart-container', 'report-url-table', 'useful-links-table'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    var dataPromises = [
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getUsers(); }),
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getReportData(); }),
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getUserInfo(); }),
+        new Promise(function(resolve) { google.script.run.withSuccessHandler(resolve).withFailureHandler(function() { return resolve(null); }).getUserData(); }),
+        new Promise(function(resolve) { google.script.run.withSuccessHandler(resolve).withFailureHandler(function() { return resolve(null); }).getScheduleData(); }),
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getNonAdminUsers(); }),
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getUsefulLinks(); }),
+        new Promise(function(resolve, reject) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getKeyInfoData(); })
+    ];
+
+    Promise.all(dataPromises)
+    .then(function(results) {
+        var users = results[0];
+        var reports = results[1];
+        var userInfo = results[2];
+        var allUserDataForAdminTab = results[3];
+        var initialScheduleData = results[4]; 
+        var nonAdminUsers = results[5];
+        var usefulLinks = results[6];
+        var keyInfoData = results[7];
+
+        currentUserInfo = userInfo;
+        allReportsData = reports || []; 
+        allUsersData = users || []; 
+        nonAdminUsersData = nonAdminUsers || [];
+        allScheduleDataGlobal = initialScheduleData || []; 
+        allUsefulLinksData = usefulLinks || [];
+
+        if (keyInfoData) {
+            renderKeyInfoTable('table-demand', keyInfoData.demand);
+            renderKeyInfoTable('table-dsv', keyInfoData.dsv);
+            renderKeyInfoTable('table-certs', keyInfoData.certs);
+        }
+
+        // --- VISIBILITY LOGIC: OPEN TO ALL ---
+        document.getElementById('tab-report-url-management').style.display = ''; // Shows the tab button
+        populateReportUrlManagementTab(allReportsData); // Populates the data
+        populateUsefulLinksTab(allUsefulLinksData);
+
+        try {
+            let maxWidth = 0;
+            let tempSpan = document.createElement('span');
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'nowrap';
+            tempSpan.style.fontFamily = "'Roboto', sans-serif";
+            document.body.appendChild(tempSpan);
+            tempSpan.textContent = "Select Users";
+            maxWidth = tempSpan.offsetWidth;
+            if (Array.isArray(users)) {
+                users.forEach(function(user) {
+                    tempSpan.textContent = formatEmailToName(user); 
+                    let userWidth = tempSpan.offsetWidth;
+                    if (userWidth > maxWidth) maxWidth = userWidth;
+                });
+            }
+            document.body.removeChild(tempSpan);
+            let newMinWidth = maxWidth + 15 + 50 + 5;
+            var workflowAnchor = document.querySelector('#user-filter .anchor');
+            var scheduleAnchor = document.querySelector('#schedule-user-filter .anchor');
+            let currentMinWidth = 300;
+            if (workflowAnchor) currentMinWidth = parseInt(getComputedStyle(workflowAnchor).minWidth, 10);
+            if (newMinWidth > currentMinWidth) {
+                if (workflowAnchor) workflowAnchor.style.minWidth = newMinWidth + 'px';
+                if (scheduleAnchor) scheduleAnchor.style.minWidth = newMinWidth + 'px';
+            }
+        } catch (e) { console.error("Error calculating dynamic dropdown width:", e); }
+
+        populateTable(users, reports, userInfo);
+        populateCompleteTable(reports);
+        populateKpiTab(reports);
+        populateFutureQueueTable(reports);
+
+        startActivityTracker(userInfo.isAdmin);
+
+        if (userInfo.isAdmin) {
+            document.getElementById('tab-complete').style.display = '';
+            document.getElementById('tab-kpi').style.display = '';
+            document.getElementById('tab-user-management').style.display = '';
+            document.getElementById('tab-form').style.display = '';
+            document.getElementById('tab-schedule-management').style.display = '';
+            document.getElementById('tab-log').style.display = '';
+            document.getElementById('admin-filter-container').style.display = 'inline-block';
+            document.getElementById('completion-filter-wrapper').classList.add('ml-6');
+
+            setupUserFilter(users);
+            setupScheduleUserFilter(users);
+
+            if (allUserDataForAdminTab) {
+                populateUserManagementTab(allUserDataForAdminTab);
+            } else {
+                document.getElementById('user-loader').innerText = 'Could not load user management data.';
+            }
+            populateScheduleTable(allScheduleDataGlobal, users);
+
+        } else {
+            // Hide admin-only tabs for non-admins
+            document.getElementById('tab-complete').style.display = 'none';
+            document.getElementById('tab-kpi').style.display = 'none';
+            document.getElementById('tab-user-management').style.display = 'none';
+            document.getElementById('tab-form').style.display = 'none';
+            document.getElementById('tab-schedule-management').style.display = 'none';
+
+            // NOTE: tab-report-url-management is intentionally NOT hidden here
+            
+            document.getElementById('admin-filter-container').style.display = 'none';
+            document.getElementById('completion-filter-wrapper').classList.remove('ml-6');
+        }
+    })
+    .catch(function(error) {
+        console.error("CRITICAL ERROR during data fetching:", error);
+        var errorMsg = 'Error loading data: ' + (error.message || error);
+        document.getElementById('loader').innerText = errorMsg;
+        var userLoader = document.getElementById('user-loader');
+        if (userLoader) userLoader.innerText = errorMsg;
+        if (document.getElementById('schedule-loader')) document.getElementById('schedule-loader').innerText = errorMsg;
+        var completeLoader = document.getElementById('complete-loader');
+        if(completeLoader) completeLoader.innerText = errorMsg;
+        var kpiLoader = document.getElementById('kpi-loader');
+        if(kpiLoader) kpiLoader.innerText = errorMsg;
+        if (document.getElementById('report-url-loader')) document.getElementById('report-url-loader').innerText = errorMsg;
+
+    })
+    .finally(function() {
+        document.getElementById('loader').style.display = 'none';
+        var userLoader = document.getElementById('user-loader');
+        if(userLoader) userLoader.style.display = 'none';
+        if (document.getElementById('schedule-loader')) document.getElementById('schedule-loader').style.display = 'none';
+        var completeLoader = document.getElementById('complete-loader');
+        if(completeLoader) completeLoader.style.display = 'none';
+        var kpiLoader = document.getElementById('kpi-loader');
+        if(kpiLoader) kpiLoader.style.display = 'none';
+        var reportUrlLoader = document.getElementById('report-url-loader');
+        if(reportUrlLoader) reportUrlLoader.style.display = 'none';
+        var usefulLinksLoader = document.getElementById('useful-links-loader');
+        if(usefulLinksLoader) usefulLinksLoader.style.display = 'none';
+
+        var reportTable = document.getElementById('report-table');
+        if (reportTable) reportTable.classList.remove('hidden');
+        var kpiDisplay = document.getElementById('kpi-display-area'); 
+        if(kpiDisplay) kpiDisplay.classList.remove('hidden');
+        var chartContainer = document.getElementById('workload-chart-container');
+        if(chartContainer) chartContainer.classList.remove('hidden');
+        var otdChartContainer = document.getElementById('otd-chart-container');
+        if(otdChartContainer) otdChartContainer.classList.remove('hidden');
+        var reportUrlTable = document.getElementById('report-url-table');
+        if (reportUrlTable) reportUrlTable.classList.remove('hidden');
+        var usefulLinksTable = document.getElementById('useful-links-table');
+        if (usefulLinksTable) usefulLinksTable.classList.remove('hidden');
+        if (currentUserInfo && currentUserInfo.isAdmin) {
+            setupKpiInteractions();
+            var completeTable = document.getElementById('complete-table');
+            if(completeTable) completeTable.classList.remove('hidden');
+            var userManagementArea = document.getElementById('user-management-area');
+            if (userManagementArea) userManagementArea.classList.remove('hidden');
+            var scheduleTable = document.getElementById('schedule-table');
+            if (scheduleTable) scheduleTable.classList.remove('hidden');
+        }
+
+        var timeEl = document.getElementById('last-refreshed-time');
+        if (timeEl) {
+            var now = new Date();
+            var timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            timeEl.textContent = 'Last refreshed: ' + timeString;
+        }
+        try {
+            var logFrame = document.getElementById("log-iframe");
+            if (logFrame) {
+                var currentSrc = logFrame.src;
+                var baseUrl = currentSrc.split('&bust=')[0];
+                var newSrc = baseUrl + '&bust=' + new Date().getTime();
+                logFrame.src = newSrc;
+            }
+        } catch (e) { console.warn("Error refreshing log:", e); }
+
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.224 4.344l-1.423 1.423A7.5 7.5 0 0018 12.5a7.5 7.5 0 00-2.688-5.576l-1.423 1.423a5.5 5.5 0 011.423 3.077zM4.688 8.576a5.5 5.5 0 019.224-4.344l1.423-1.423A7.5 7.5 0 002 7.5a7.5 7.5 0 002.688 5.576l1.423-1.423A5.5 5.5 0 014.688 8.576z" clip-rule="evenodd" /></svg><span>Refresh</span>';
+    });
+}
+
+function setupUserFilter(users) {
+    var userFilterList = document.getElementById('user-filter-list');
+    if (!userFilterList) return;
+    userFilterList.innerHTML = '';
+    var allUsersItem = document.createElement('li');
+    allUsersItem.innerHTML = '<label class="block px-4 py-2 hover:bg-gray-100 cursor-pointer"><input type="checkbox" value="" class="mr-2" checked/>All Users</label>';
+    userFilterList.appendChild(allUsersItem);
+
+    users.sort().forEach(function(user) {
+        var listItem = document.createElement('li');
+        listItem.innerHTML = '<label class="block px-4 py-2 hover:bg-gray-100 cursor-pointer"><input type="checkbox" value="' + user + '" class="mr-2"/>' + formatEmailToName(user) + '</label>';
+        userFilterList.appendChild(listItem);
+    });
+
+    userFilterList.addEventListener('change', function(event) {
+        var checkboxes = Array.from(userFilterList.querySelectorAll('input[type="checkbox"]'));
+        var allUsersCheckbox = checkboxes.find(function(cb) { return cb.value === ""; });
+        var otherCheckboxes = checkboxes.filter(function(cb) { return cb.value !== ""; });
+
+        if (event.target === allUsersCheckbox) {
+            if (allUsersCheckbox.checked) {
+                otherCheckboxes.forEach(function(cb) { cb.checked = false; });
+            } else if (!otherCheckboxes.some(function(cb) { return cb.checked; })) {
+                allUsersCheckbox.checked = true;
+            }
+        } else {
+            if (event.target.checked) {
+                allUsersCheckbox.checked = false;
+            } else if (!otherCheckboxes.some(function(cb) { return cb.checked; })) {
+                allUsersCheckbox.checked = true;
+            }
+        }
+        populateTable(allUsersData, allReportsData, currentUserInfo);
+    });
+
+    var checkList = document.getElementById('user-filter');
+    var anchor = checkList.querySelector('.anchor');
+    anchor.onclick = function(evt) {
+        evt.stopPropagation();
+        var items = checkList.querySelector('.items');
+        items.style.display = items.style.display === 'block' ? 'none' : 'block';
+    };
+    document.addEventListener('click', function(e) {
+        var items = checkList.querySelector('.items');
+        if (items && !checkList.contains(e.target)) {
+            items.style.display = 'none';
+        }
+    });
+}
+
+function setupScheduleUserFilter(users) {
+    var userFilterList = document.getElementById('schedule-user-filter-list');
+    if (!userFilterList) return;
+    userFilterList.innerHTML = '';
+    var allUsersItem = document.createElement('li');
+    allUsersItem.innerHTML = '<label class="block px-4 py-2 hover:bg-gray-100 cursor-pointer"><input type="checkbox" value="" class="mr-2" checked/>All Users</label>';
+    userFilterList.appendChild(allUsersItem);
+    users.sort().forEach(function(user) {
+        var listItem = document.createElement('li');
+        listItem.innerHTML = '<label class="block px-4 py-2 hover:bg-gray-100 cursor-pointer"><input type="checkbox" value="' + user + '" class="mr-2"/>' + formatEmailToName(user) + '</label>';
+        userFilterList.appendChild(listItem);
+    });
+
+    userFilterList.addEventListener('change', function(event) {
+        var checkboxes = Array.from(userFilterList.querySelectorAll('input[type="checkbox"]'));
+        var allUsersCheckbox = checkboxes.find(function(cb) { return cb.value === ""; });
+        var otherCheckboxes = checkboxes.filter(function(cb) { return cb.value !== ""; });
+
+        if (event.target === allUsersCheckbox) {
+            if (allUsersCheckbox.checked) {
+                otherCheckboxes.forEach(function(cb) { cb.checked = false; });
+            } else if (!otherCheckboxes.some(function(cb) { return cb.checked; })) {
+                allUsersCheckbox.checked = true; 
+            }
+        } else {
+            if (event.target.checked) {
+                allUsersCheckbox.checked = false; 
+            } else if (!otherCheckboxes.some(function(cb) { return cb.checked; })) {
+                allUsersCheckbox.checked = true; 
+            }
+        }
+        populateScheduleTable(allScheduleDataGlobal, allUsersData);
+    });
+
+    var checkList = document.getElementById('schedule-user-filter');
+    var anchor = checkList.querySelector('.anchor');
+    anchor.onclick = function(evt) {
+        evt.stopPropagation(); 
+        var items = checkList.querySelector('.items');
+        items.style.display = items.style.display === 'block' ? 'none' : 'block';
+    };
+    document.addEventListener('click', function(e) {
+        var items = checkList.querySelector('.items');
+        if (items && !checkList.contains(e.target)) {
+            items.style.display = 'none';
+        }
+    });
+}
+
+function startActivityTracker(isAdmin) {
+    if (activityInterval) clearInterval(activityInterval);
+    var updateFunction = function() {
+        google.script.run
+        .withSuccessHandler(function() {
+            if (isAdmin) {
+                var activeUsersSection = document.getElementById('active-users-section');
+                if (activeUsersSection) activeUsersSection.classList.remove('hidden');
+                google.script.run.withSuccessHandler(updateActiveViewersUI).getActiveViewers();
+            }
+        })
+        .withFailureHandler(function(err) { console.error("Heartbeat failed:", err); })
+        .logUserActivity();
+    };
+    updateFunction();
+    activityInterval = setInterval(updateFunction, 60000); 
+}
+
+function updateActiveViewersUI(viewers) {
+    var listElement = document.getElementById('active-users-list');
+    if (!listElement || !currentUserInfo) return; 
+    listElement.innerHTML = '';
+    var otherViewers = viewers.filter(function(viewer) {
+        return viewer.toLowerCase() !== currentUserInfo.email.toLowerCase();
+    });
+    if (otherViewers.length > 0) {
+        otherViewers.forEach(function(viewer) { 
+            var viewerTag = document.createElement('span');
+            viewerTag.className = 'bg-blue-200 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded-full';
+            viewerTag.textContent = formatEmailToName(viewer);
+            listElement.appendChild(viewerTag);
+        });
+    } else {
+        listElement.innerHTML = '<span class="text-blue-700">No other users are currently active.</span>';
+    }
+}
+
+function populateTable(users, reports, userInfo) {
+    var tableBody = document.getElementById('table-body');
+    tableBody.innerHTML = '';
+    var selectedUsersCheckboxes = Array.from(document.querySelectorAll('#user-filter-list input:checked'));
+    var selectedUsers = selectedUsersCheckboxes.map(function(cb) { return cb.value; }).filter(function(value) { return value !== ""; });
+    var isAllUsersSelected = selectedUsersCheckboxes.some(function(cb) { return cb.value === "" && cb.checked; });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    const todayTime = today.getTime();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayString = `${yyyy}-${mm}-${dd}`;
+
+    let reportsToDisplay = reports;
+    if (reports === allReportsData) {
+        reportsToDisplay = reports.filter(function(report) {
+            let isDueOrOverdue = false;
+            if (report.nextRunDate) { isDueOrOverdue = report.nextRunDate <= todayString; }
+            const isProject = report.frequency && report.frequency.trim().toLowerCase() === 'project';
+            let shouldHide = false;
+            if (report.completedDate) {
+                if (!report.completedDate.startsWith(todayString)) { shouldHide = true; }
+            }
+            return (isDueOrOverdue || isProject) && !shouldHide;
+        });
+    }
+
+    if (userInfo.isAdmin && !isAllUsersSelected && selectedUsers.length > 0) {
+        reportsToDisplay = reportsToDisplay.filter(function(report) { return selectedUsers.includes(report.allocatedTo); });
+    } else if (!userInfo.isAdmin) {
+        reportsToDisplay = reportsToDisplay.filter(function(report) { return report.allocatedTo && userInfo.email && (report.allocatedTo.toLowerCase() === userInfo.email.toLowerCase()); });
+    }
+
+    var completionFilter = document.getElementById('completion-filter');
+    if (completionFilter) {
+        var filterValue = completionFilter.value;
+        if (filterValue === 'hide') {
+            reportsToDisplay = reportsToDisplay.filter(function(report) { return !report.completedDate; });
+        } else if (filterValue === 'completed_only') {
+            reportsToDisplay = reportsToDisplay.filter(function(report) { return !!report.completedDate; });
+        }
+    }
+
+    if (!reportsToDisplay || reportsToDisplay.length === 0) {
+        var noReportsMessage = 'No reports due today (or active Projects) match the current filter.';
+        if (!userInfo.isAdmin) {
+            noReportsMessage = 'You have no reports due today or active Projects assigned.';
+        } else if (isAllUsersSelected) {
+            noReportsMessage = 'No reports are due today and no active Projects are listed.';
+        }
+        var emptyRow = document.createElement('tr');
+        var emptyCell = document.createElement('td');
+        emptyCell.colSpan = 10;
+        emptyCell.className = 'p-4 text-center text-gray-500';
+        emptyCell.textContent = noReportsMessage;
+        emptyRow.appendChild(emptyCell);
+        tableBody.appendChild(emptyRow);
+        return;
+    }
+
+    reportsToDisplay.forEach(function(report) {
+        var isCompleted = !!report.completedDate;
+        var isAssignedToCurrentUser = userInfo.email && report.allocatedTo && (userInfo.email.toLowerCase() === report.allocatedTo.toLowerCase());
+        var row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50 transition-colors duration-200';
+        row.dataset.originalAllocation = report.allocatedTo || '';
+        if (isCompleted) { row.classList.add('completed-row'); }
+
+        var nameCell = document.createElement('td');
+        nameCell.className = 'p-4 whitespace-normal';
+        nameCell.textContent = report.reportName;
+        row.appendChild(nameCell);
+
+        var allocatedCell = document.createElement('td');
+        allocatedCell.className = 'p-4';
+        var userSelect = document.createElement('select');
+        userSelect.className = 'w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500';
+        var notAssignedOption = document.createElement('option');
+        notAssignedOption.value = '';
+        notAssignedOption.textContent = 'Not Assigned';
+        userSelect.appendChild(notAssignedOption);
+        users.forEach(function(user) {
+            var option = document.createElement('option');
+            option.value = user;
+            option.textContent = formatEmailToName(user);
+            if (user.toLowerCase() === (report.allocatedTo || '').toLowerCase()) { option.selected = true; }
+            userSelect.appendChild(option);
+        });
+        if (userInfo.isAdmin) {
+            var flexContainer = document.createElement('div');
+            flexContainer.className = 'flex flex-col space-y-1';
+            userSelect.classList.remove('w-1/2');
+            userSelect.classList.add('w-full');
+            flexContainer.appendChild(userSelect);
+            var setDefaultContainer = document.createElement('label');
+            setDefaultContainer.className = 'flex items-center space-x-1 whitespace-nowrap text-sm text-gray-600 cursor-pointer pt-1';
+            var setDefaultCheckbox = document.createElement('input');
+            setDefaultCheckbox.type = 'checkbox';
+            setDefaultCheckbox.className = 'set-default-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500';
+            setDefaultContainer.appendChild(setDefaultCheckbox);
+            var setDefaultLabel = document.createElement('span');
+            setDefaultLabel.textContent = 'Set as Primary User';
+            setDefaultContainer.appendChild(setDefaultLabel);
+            flexContainer.appendChild(setDefaultContainer);
+            allocatedCell.appendChild(flexContainer);
+        } else {
+            userSelect.disabled = true;
+            allocatedCell.appendChild(userSelect);
+        }
+        row.appendChild(allocatedCell);
+
+        var dateCell = document.createElement('td');
+        dateCell.className = 'p-4 whitespace-nowrap';
+        dateCell.textContent = report.nextRunDate;
+        row.appendChild(dateCell);
+
+        var timeCell = document.createElement('td');
+        timeCell.className = 'p-4 whitespace-nowrap';
+        timeCell.textContent = report.dueTime;
+        row.appendChild(timeCell);
+
+        var processNotesCell = document.createElement('td');
+        processNotesCell.className = 'p-4';
+        var processNotesLink = report.processNotesLink || '';
+        if (processNotesLink) {
+            var link = document.createElement('a');
+            link.href = processNotesLink;
+            link.target = '_blank';
+            link.className = 'text-blue-600 hover:text-blue-800 underline';
+            link.textContent = 'Process Notes';
+            processNotesCell.appendChild(link);
+        } else {
+            processNotesCell.className = 'p-4 text-gray-400';
+            processNotesCell.textContent = '-';
+        }
+        row.appendChild(processNotesCell);
+
+        var reportLinkCell = document.createElement('td');
+        reportLinkCell.className = 'p-4';
+        var reportLink = report.reportLink || '';
+        if (reportLink) {
+            var link = document.createElement('a');
+            link.href = reportLink;
+            link.target = '_blank';
+            link.className = 'text-blue-600 hover:text-blue-800 underline';
+            link.textContent = 'Report Link';
+            reportLinkCell.appendChild(link);
+        } else {
+            reportLinkCell.className = 'p-4 text-gray-400';
+            reportLinkCell.textContent = '-';
+        }
+        row.appendChild(reportLinkCell);
+
+        var commentCell = document.createElement('td');
+        commentCell.className = 'p-4';
+        // USE TEXTAREA FOR COMMENTS (Better for History Log)
+        var commentInput = document.createElement('textarea');
+        commentInput.rows = 3;
+        commentInput.value = report.comments || '';
+        commentInput.placeholder = 'Add a comment...';
+        commentInput.className = 'w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm';
+        commentInput.style.minWidth = '200px'; 
+        if (!userInfo.isAdmin && !isAssignedToCurrentUser) { commentInput.disabled = true; }
+        commentCell.appendChild(commentInput);
+        row.appendChild(commentCell);
+
+        var ragCell = document.createElement('td');
+        ragCell.className = 'p-4 whitespace-nowrap';
+        var ragBadge = document.createElement('span');
+        ragBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-medium';
+        if (isCompleted) {
+            ragBadge.textContent = 'Done';
+            ragBadge.classList.add('bg-gray-100', 'text-gray-800');
+        } else if (!report.dueTime) {
+            ragBadge.textContent = 'N/A';
+            ragBadge.classList.add('bg-gray-100', 'text-gray-800');
+        } else {
+            try {
+                var now = new Date();
+                var dueTimeParts = report.dueTime.split(':');
+                var dueTimeDate = new Date();
+                dueTimeDate.setHours(dueTimeParts[0], dueTimeParts[1], 0, 0); 
+                var nowTime = now.getTime();
+                var dueTime = dueTimeDate.getTime();
+                var amberThreshold = dueTime - (60 * 60 * 1000); 
+                if (nowTime > dueTime) {
+                    ragBadge.textContent = 'Late';
+                    ragBadge.classList.add('bg-red-100', 'text-black-800');
+                } else if (nowTime >= amberThreshold) {
+                    ragBadge.textContent = 'Due Soon';
+                    ragBadge.classList.add('bg-amber-400', 'text-black-800');
+                } else {
+                    ragBadge.textContent = 'On Track';
+                    ragBadge.classList.add('bg-green-100', 'text-black-800');
+                }
+            } catch (e) {
+                ragBadge.textContent = 'Error';
+                ragBadge.classList.add('bg-gray-100', 'text-gray-800');
+            }
+        }
+        ragCell.appendChild(ragBadge);
+        row.appendChild(ragCell);
+
+        var statusCell = document.createElement('td');
+        statusCell.className = 'p-4';
+        var statusBtn = document.createElement('button');
+        statusBtn.className = 'w-full text-white py-1 px-2 text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200';
+        var assignedToEmail = (report.allocatedTo || '').toLowerCase();
+        var isNotRequired = assignedToEmail === 'not.required@example.com';
+        var canComplete = isAssignedToCurrentUser || (userInfo.isAdmin && isNotRequired);
+
+        if (isCompleted) {
+            statusBtn.innerHTML = '<svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg><span>Done</span>';
+            statusBtn.classList.add('flex', 'items-center', 'justify-center');
+            if (canComplete) {
+                statusBtn.onclick = function() { undoCompleteHandler(this); };
+                statusBtn.className += ' bg-green-600 hover:bg-green-700 focus:ring-green-500';
+            } else {
+                statusBtn.className += ' bg-gray-400 cursor-not-allowed';
+                statusBtn.disabled = true;
+            }
+        } else {
+            statusBtn.textContent = 'To-Do';
+            if (canComplete) {
+                statusBtn.onclick = function() { markComplete(this); };
+                statusBtn.className += ' bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500';
+            } else {
+                statusBtn.className += ' bg-gray-400 cursor-not-allowed';
+                statusBtn.disabled = true;
+            }
+        }
+        statusCell.appendChild(statusBtn);
+        row.appendChild(statusCell);
+
+        var actionCell = document.createElement('td');
+        actionCell.className = 'p-4';
+        var actionDiv = document.createElement('div');
+        actionDiv.className = 'flex flex-col space-y-1';
+        if (userInfo.isAdmin) {
+            var saveBtn = document.createElement('button');
+            saveBtn.onclick = function() { saveChanges(this); };
+            saveBtn.className = 'w-full text-white py-1 px-2 text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 flex items-center justify-center';
+            if (isCompleted) {
+                saveBtn.className += ' bg-gray-400 cursor-not-allowed';
+                saveBtn.disabled = true;
+            } else {
+                saveBtn.className += ' bg-green-600 hover:bg-green-700';
+            }
+            saveBtn.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+            actionDiv.appendChild(saveBtn);
+            var emailBtn = document.createElement('button');
+            emailBtn.onclick = function() { sendReminderEmail(this); };
+            emailBtn.className = 'w-full text-white py-1 px-2 text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-200 flex items-center justify-center';
+            if (isCompleted || !report.allocatedTo) {
+                emailBtn.className += ' bg-gray-400 cursor-not-allowed';
+                emailBtn.disabled = true;
+            } else {
+                emailBtn.className += ' bg-yellow-500 hover:bg-yellow-600';
+            }
+            emailBtn.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg><span>Email</span>';
+            actionDiv.appendChild(emailBtn);
+            var deleteBtn = document.createElement('button');
+            deleteBtn.onclick = function() { confirmDelete(this); };
+            deleteBtn.className = 'w-full text-white py-1 px-2 text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 flex items-center justify-center';
+            if (isCompleted) {
+                deleteBtn.className += ' bg-gray-400 cursor-not-allowed';
+                deleteBtn.disabled = true;
+            } else {
+                deleteBtn.className += ' bg-red-600 hover:bg-red-700';
+            }
+            deleteBtn.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Delete</span>';
+            actionDiv.appendChild(deleteBtn);
+        } else if (isAssignedToCurrentUser && !isCompleted) {
+            var saveCommentBtn = document.createElement('button');
+            saveCommentBtn.onclick = function() { saveComment(this); };
+            saveCommentBtn.className = 'w-full bg-green-600 text-white py-1 px-2 text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200';
+            saveCommentBtn.textContent = 'Save Comments';
+            actionDiv.appendChild(saveCommentBtn);
+        }
+        actionCell.appendChild(actionDiv);
+        row.appendChild(actionCell);
+        tableBody.appendChild(row);
+    });
+}
+
+function populateCompleteTable(reports) { 
+    var tableBody = document.getElementById('complete-table-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    let completedReports;
+    if (reports === allReportsData) {
+        const filterContainer = document.getElementById('complete-filter-controls');
+        if (filterContainer) {
+            filterContainer.innerHTML = ''; 
+            filterContainer.classList.add('hidden'); 
+        }
+        completedReports = reports.filter(function(report) { return !!report.completedDate; });
+    } else {
+        completedReports = reports.filter(function(report) { return !!report.completedDate; });
+    }
+    completedReports.sort(function(a, b) {
+        if (b.completedDate && a.completedDate) {
+            return b.completedDate.localeCompare(a.completedDate);
+        } else if (b.completedDate) {
+            return 1; 
+        } else if (a.completedDate) {
+            return -1;
+        } else {
+            return 0; 
+        }
+    });
+
+    if (!completedReports || completedReports.length === 0) {
+        var emptyRow = document.createElement('tr');
+        var emptyCell = document.createElement('td');
+        emptyCell.colSpan = 6; 
+        emptyCell.className = 'p-4 text-center text-gray-500';
+        if (reports === allReportsData) {
+            emptyCell.textContent = 'No reports have been completed yet.';
+        } else {
+            emptyCell.textContent = 'No reports match this filter.';
+        }
+        emptyRow.appendChild(emptyCell);
+        tableBody.appendChild(emptyRow);
+        return;
+    }
+
+    completedReports.forEach(function(report) {
+        var row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50'; 
+        var reportType = (report.frequency && report.frequency.trim().toLowerCase() === 'project') ? 'Project' : 'Report';
+        var nameCell = document.createElement('td');
+        nameCell.className = 'p-4 whitespace-normal';
+        nameCell.textContent = report.reportName || '';
+        row.appendChild(nameCell);
+        var completedByCell = document.createElement('td');
+        completedByCell.className = 'p-4 whitespace-nowrap';
+        completedByCell.textContent = formatEmailToName(report.allocatedTo) || 'Unknown'; 
+        row.appendChild(completedByCell);
+        var typeCell = document.createElement('td');
+        typeCell.className = 'p-4 whitespace-nowrap';
+        typeCell.textContent = reportType;
+        row.appendChild(typeCell);
+        var statusCell = document.createElement('td');
+        statusCell.className = 'p-4 whitespace-nowrap';
+        var statusBadge = document.createElement('span');
+        statusBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-medium';
+        var isProject = (report.frequency && report.frequency.trim().toLowerCase() === 'project');
+        if (isProject || !report.dueTime || !report.completedDate) {
+            statusBadge.textContent = 'N/A';
+            statusBadge.classList.add('bg-gray-100', 'text-gray-800');
+        } else {
+            var actualCompletionTime = timeToMinutes(report.completedDate.split(' ')[1]);
+            var dueTimeMinutes = timeToMinutes(report.dueTime);
+            if (actualCompletionTime <= dueTimeMinutes) {
+                statusBadge.textContent = 'On-Time';
+                statusBadge.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                statusBadge.textContent = 'Late';
+                statusBadge.classList.add('bg-red-100', 'text-red-800');
+            }
+        }
+        statusCell.appendChild(statusBadge);
+        row.appendChild(statusCell);
+        var dueTimeCell = document.createElement('td');
+        dueTimeCell.className = 'p-4 whitespace-nowrap';
+        dueTimeCell.textContent = report.dueTime || '-'; 
+        row.appendChild(dueTimeCell);
+        var dateTimeCell = document.createElement('td');
+        dateTimeCell.className = 'p-4 whitespace-nowrap';
+        dateTimeCell.textContent = report.completedDate || ''; 
+        row.appendChild(dateTimeCell);
+        tableBody.appendChild(row);
+    });
+}
+
+function populateFutureQueueTable(reports) {
+    var tableBody = document.getElementById('future-table-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayString = `${yyyy}-${mm}-${dd}`;
+    var futureReports = reports.filter(function(r) {
+        var isFuture = r.nextRunDate && r.nextRunDate > todayString;
+        var isAssignedToMe = r.allocatedTo && currentUserInfo.email && (r.allocatedTo.toLowerCase() === currentUserInfo.email.toLowerCase());
+        return isFuture && (currentUserInfo.isAdmin || isAssignedToMe);
+    });
+    futureReports.sort(function(a, b) { return a.nextRunDate.localeCompare(b.nextRunDate); });
+    if (futureReports.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-500">No future reports found.</td></tr>';
+        return;
+    }
+    futureReports.forEach(function(report) {
+        var row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        row.innerHTML = `<td class="p-4 whitespace-nowrap">${report.nextRunDate}</td><td class="p-4">${report.reportName}</td><td class="p-4 whitespace-nowrap">${formatEmailToName(report.allocatedTo)}</td><td class="p-4 whitespace-nowrap">${report.frequency || '-'}</td>`;
+        tableBody.appendChild(row);
+    });
+}
+
+function populateKpiTab(reports) {
+var kpiDisplay = document.getElementById('kpi-display-area');
+if (!kpiDisplay) return;
+const parseUKDateTimeToISO = (ukDateTimeStr) => {
+    if (!ukDateTimeStr) return null;
+    try {
+        const parts = ukDateTimeStr.match(/(\d{4})[/\-](\d{1,2})[/\-](\d{1,2}) (\d{2}):(\d{2}):(\d{2})/);
+        if (!parts) {
+            const standardDate = new Date(ukDateTimeStr);
+            return isNaN(standardDate.getTime()) ? null : standardDate.toISOString();
+        }
+        const [_, yyyy, mm, dd, hh, mn, ss] = parts;
+        return `${yyyy}-${mm}-${dd}T${hh}:${mn}:${ss}Z`; 
+    } catch(e) { console.error("Date parse helper failed for:", ukDateTimeStr, e); return null; }
+}
+const today = new Date();
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, '0');
+const dd = String(today.getDate()).padStart(2, '0');
+const todayString = `${yyyy}-${mm}-${dd}`;
+today.setHours(0,0,0,0); 
+const todayTime = today.getTime();
+
+let reportsDueToday = 0;
+let reportsCompletedToday = 0;
+let outstandingToday = 0;
+let activeProjects = 0;
+let historicProjects = 0;
+let totalProjectCycleDays = 0;
+let completedProjectCount = 0;
+let totalProjectsCount = 0; 
+let totalCompletedProjects = 0; 
+let totalDailyCompletionMinutes = 0;
+let completedDailyReportsCount = 0;
+let queueBacklogCount = 0; 
+let totalAssignedUsersInActiveWorkflow = new Set(); 
+let otdCompletedCount = 0; 
+let otdTotalCompletedCount = 0; 
+let unassignedToday = 0;
+userWorkload = {}; 
+
+reports.forEach(function(report) {
+const isProject = report.frequency && report.frequency.trim().toLowerCase() === 'project';
+const isCompleted = !!report.completedDate; 
+const isDueToday = report.nextRunDate === todayString;
+
+if (isDueToday) { reportsDueToday++; }
+if (isCompleted && report.completedDate.startsWith(todayString)) { reportsCompletedToday++; }
+if (isDueToday && !isCompleted) {
+outstandingToday++;
+    if (!report.allocatedTo || report.allocatedTo.trim() === '') { unassignedToday++; }
+}
+
+let shouldHide = false;
+if (isProject) {
+    totalProjectsCount++; 
+    if (isCompleted) { totalCompletedProjects++; }
+    if (isCompleted && report.nextRunDate) {
+        try {
+            const runDate = new Date(report.nextRunDate + 'T00:00:00Z');
+            if (!isNaN(runDate.getTime()) && runDate.getTime() < todayTime) { shouldHide = true; }
+        } catch(e) {}
+    }
+}
+if (isProject && !shouldHide) { activeProjects++; }
+if (isProject && shouldHide) { historicProjects++; }
+        if (isDueToday || (isProject && !shouldHide)) {
+            let finalName;
+            if (report.allocatedTo && report.allocatedTo.trim() !== '') {
+                const userEmail = report.allocatedTo.trim();
+                finalName = formatEmailToName(userEmail);
+            } else {
+                finalName = 'Unassigned';
+            }
+            if (!userWorkload[finalName]) { userWorkload[finalName] = { outstanding: 0, completed: 0 }; }
+            if (isCompleted) {
+                userWorkload[finalName].completed++;
+            } else {
+                userWorkload[finalName].outstanding++;
+                if (report.allocatedTo && report.allocatedTo.trim() !== '') {
+                      totalAssignedUsersInActiveWorkflow.add(report.allocatedTo.trim());
+                }
+            }
+        }
+if (!isProject && isCompleted && report.completedDate.startsWith(todayString) && report.dueTime) {
+    otdTotalCompletedCount++;
+    const actualCompletionTime = timeToMinutes(report.completedDate.split(' ')[1]);
+    const dueTimeMinutes = timeToMinutes(report.dueTime);
+    if (actualCompletionTime <= dueTimeMinutes) { otdCompletedCount++; }
+}
+
+if (isProject && isCompleted && report.createdDate && report.completedDate) {
+try {
+    const createdIso = parseUKDateTimeToISO(report.createdDate);
+    const completedIso = parseUKDateTimeToISO(report.completedDate);
+    if (createdIso && completedIso) { 
+        const createdDateTime = new Date(createdIso); 
+        const completionDateTime = new Date(completedIso); 
+        if (!isNaN(createdDateTime.getTime()) && !isNaN(completionDateTime.getTime())) {
+            const cycleTimeMs = completionDateTime.getTime() - createdDateTime.getTime();
+            const cycleTimeDays = cycleTimeMs / (1000 * 60 * 60 * 24);
+            if (cycleTimeDays > 0) { 
+                totalProjectCycleDays += cycleTimeDays;
+                completedProjectCount++;
+            }
+        }
+    } 
+} catch (e) { console.error("Error calculating Project Cycle Time:", e); }
+}
+
+const freq = report.frequency ? report.frequency.trim().toLowerCase() : '';
+if (freq === 'weekly' || freq === 'monthly') {
+    if (report.nextRunDate) { 
+        try {
+            const nextRunDateStr = report.nextRunDate;
+            const nextRunDateTime = new Date(nextRunDateStr);
+            if (!isNaN(nextRunDateTime.getTime())) {
+                if (nextRunDateTime.getTime() > todayTime) { queueBacklogCount++; }
+            }
+        } catch (e) { console.error("Error parsing Col F date for backlog:", report.nextRunDate, e); }
+    }
+}
+});
+
+const avgCycleTimeDays = completedProjectCount > 0 ? (totalProjectCycleDays / completedProjectCount).toFixed(1) : 'N/A';
+const completionRate = reportsDueToday > 0 ? Math.round((reportsCompletedToday / reportsDueToday) * 100) : 'N/A';
+const projectCompletionRate = totalProjectsCount > 0 ? Math.round((totalCompletedProjects / totalProjectsCount) * 100) : 'N/A';
+const activeTasksCount = reports.filter(r => !r.completedDate && !!r.allocatedTo && r.allocatedTo.trim() !== '' && (r.nextRunDate === todayString || (r.frequency && r.frequency.trim().toLowerCase() === 'project' && !shouldHide))).length;
+const avgWipPerUser = totalAssignedUsersInActiveWorkflow.size > 0 ? (activeTasksCount / totalAssignedUsersInActiveWorkflow.size).toFixed(1) : 'N/A';
+const totalTeamSize = Array.isArray(nonAdminUsersData) ? nonAdminUsersData.length : 0;
+const avgTeamLoad = totalTeamSize > 0 ? (activeTasksCount / totalTeamSize).toFixed(1) : 'N/A';
+const dailyOtdRate = otdTotalCompletedCount > 0 ? Math.round((otdCompletedCount / otdTotalCompletedCount) * 100) : 'N/A';
+const lateCount = otdTotalCompletedCount > 0 ? (otdTotalCompletedCount - otdCompletedCount) : 0;
+otdData = { onTime: otdCompletedCount, late: lateCount };
+
+document.getElementById('kpi-due-today').textContent = reportsDueToday;
+document.getElementById('kpi-completed-today').textContent = reportsCompletedToday;
+document.getElementById('kpi-completion-rate').textContent = reportsDueToday > 0 ? `${completionRate}%` : 'N/A';
+document.getElementById('kpi-outstanding-today').textContent = outstandingToday;
+document.getElementById('kpi-active-projects').textContent = activeProjects;
+document.getElementById('kpi-historic-projects').textContent = historicProjects;
+document.getElementById('kpi-unassigned-today').textContent = unassignedToday;
+document.getElementById('kpi-avg-cycle-time').textContent = avgCycleTimeDays;
+document.getElementById('kpi-queue-backlog').textContent = queueBacklogCount;
+document.getElementById('kpi-project-completion-rate').textContent = projectCompletionRate === 'N/A' ? 'N/A' : `${projectCompletionRate}%`;
+document.getElementById('kpi-avg-wip-user').textContent = avgWipPerUser;
+document.getElementById('kpi-avg-team-load').textContent = avgTeamLoad;
+document.getElementById('kpi-otd-rate').textContent = dailyOtdRate === 'N/A' ? 'N/A' : `${dailyOtdRate}%`;
+
+kpiDisplay.classList.remove('hidden');
+
+if (Object.keys(userWorkload).length > 0) {
+    if (document.getElementById('tab-kpi').classList.contains('tab-active')) {
+        google.charts.setOnLoadCallback(() => drawWorkloadChart(userWorkload));
+    }
+    document.getElementById('workload-chart-container').classList.remove('hidden');
+} else {
+    document.getElementById('user-workload-chart').innerHTML = '<p class="text-center text-gray-500">No active assigned tasks to chart.</p>';
+    document.getElementById('workload-chart-container').classList.remove('hidden');
+}
+if (otdData.onTime > 0 || otdData.late > 0) {
+    if (document.getElementById('tab-kpi').classList.contains('tab-active')) {
+        google.charts.setOnLoadCallback(() => drawOtdPieChart(otdData));
+    }
+} else {
+    document.getElementById('otd-pie-chart').innerHTML = '<p class="text-center text-gray-500">No daily reports completed today to chart.</p>';
+}
+}
+
+function drawWorkloadChart(data) {
+    const chartDataArray = [['User', 'Outstanding', 'Completed']];
+    for (const user in data) {
+        const outstandingTasks = data[user].outstanding || 0;
+        const completedTasks = data[user].completed || 0;
+        if (outstandingTasks > 0 || completedTasks > 0) {
+            chartDataArray.push([user, outstandingTasks, completedTasks]);
+        }
+    }
+    if (chartDataArray.length === 1) { 
+        document.getElementById('user-workload-chart').innerHTML = '<p class="text-center text-gray-500">No active or completed tasks to chart for today.</p>';
+        return;
+    }
+    const dataTable = google.visualization.arrayToDataTable(chartDataArray);
+    const options = {
+        title: 'Daily Workload by User (Outstanding vs. Completed)',
+        isStacked: true, 
+        legend: { position: 'top' }, 
+        chartArea: { width: '80%', height: '70%' }, 
+        colors: ['#2B5797', '#48bb78'], 
+        hAxis: { title: 'Total Tasks', minValue: 0, format: '0', minorGridlines: { count: 0 } },
+        vAxis: { title: 'User', textStyle: {fontSize: 10} }
+    };
+    const chart = new google.visualization.BarChart(document.getElementById('user-workload-chart'));
+    chart.draw(dataTable, options);
+}
+
+function drawOtdPieChart(data) {
+    const chartDataArray = [
+        ['Status', 'Count'],
+        ['On-Time', data.onTime],
+        ['Late', data.late]
+    ];
+    const dataTable = google.visualization.arrayToDataTable(chartDataArray);
+    const options = {
+        title: 'Daily On-Time vs. Late Completions',
+        colors: ['#48bb78', '#f56565'], 
+        legend: { position: 'right', textStyle: { fontSize: 12 } },
+        chartArea: { width: '75%', height: '75%' },
+        pieSliceText: 'value', 
+        pieSliceTextStyle: { color: 'white', fontSize: 16, bold: true }
+    };
+    const chart = new google.visualization.PieChart(document.getElementById('otd-pie-chart'));
+    google.visualization.events.addListener(chart, 'select', function() {
+        var selectedItem = chart.getSelection()[0];
+        if (selectedItem) {
+            var status = dataTable.getValue(selectedItem.row, 0);
+            if (typeof filterCompleteTabByOtdStatus === 'function') {
+                filterCompleteTabByOtdStatus(status);
+            } else {
+                console.error("filterCompleteTabByOtdStatus function is missing.");
+            }
+        }
+    });
+    chart.draw(dataTable, options);
+}
+
+function filterCompleteTabByOtdStatus(status) {
+    if (!allReportsData) return; 
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayString = `${yyyy}-${mm}-${dd}`;
+    const filteredReports = allReportsData.filter(function(report) {
+        const isProject = report.frequency && report.frequency.trim().toLowerCase() === 'project';
+        if (isProject) return false;
+        if (!report.completedDate || !report.completedDate.startsWith(todayString) || !report.dueTime) { return false; }
+        const actualCompletionTime = timeToMinutes(report.completedDate.split(' ')[1]);
+        const dueTimeMinutes = timeToMinutes(report.dueTime);
+        const isLate = actualCompletionTime > dueTimeMinutes;
+        if (status === 'Late' && isLate) return true;
+        if (status === 'On-Time' && !isLate) return true;
+        return false;
+    });
+    showTab("complete"); 
+    setTimeout(function() {
+        populateCompleteTable(filteredReports);
+        const filterContainer = document.getElementById('complete-filter-controls');
+        if (!filterContainer) return; 
+        let clearBtn = filterContainer.querySelector('#clear-kpi-filter-btn');
+        if (!clearBtn) {
+            clearBtn = document.createElement('button');
+            clearBtn.id = 'clear-kpi-filter-btn';
+            clearBtn.className = 'bg-gray-200 text-gray-800 py-1 px-3 rounded hover:bg-gray-300';
+            clearBtn.onclick = function() { populateCompleteTable(allReportsData); };
+            filterContainer.appendChild(clearBtn);
+        }
+        clearBtn.innerText = `Clear OTD Filter: ${status}`;
+        filterContainer.classList.remove('hidden');
+    }, 50);
+}
+
+function populateUserManagementTab(allUserData) {
+document.getElementById('user-loader').style.display = 'none';
+document.getElementById('user-management-area').classList.remove('hidden');
+var userTableBody = document.getElementById('user-table-body');
+userTableBody.innerHTML = ''; 
+if (!allUserData || allUserData.length === 0) {
+userTableBody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No users found.</td></tr>';
+return;
+}
+allUserData.forEach(function(user) {
+var row = document.createElement('tr');
+row.className = 'hover:bg-gray-50';
+var isCurrentUser = currentUserInfo && currentUserInfo.email && user.email.toLowerCase() === currentUserInfo.email.toLowerCase();
+row.innerHTML = '' +
+'<td class="p-4 whitespace-nowrap">' + user.email + '</td>' +
+'<td class="p-4">' +
+'<select class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 user-role-select" ' + (isCurrentUser ? 'disabled' : '') + '>' +
+'<option value="" ' + (user.role !== 'Admin' ? 'selected' : '') + '>User</option>' +
+'<option value="Admin" ' + (user.role === 'Admin' ? 'selected' : '') + '>Admin</option>' +
+'</select>' +
+'</td>' +
+'<td class="p-4">' +
+'<div class="flex space-x-2">' +
+'<button class="save-user-role-btn text-white py-1 px-2 text-sm rounded-md flex items-center justify-center"></button>' +
+'<button class="delete-user-btn text-white py-1 px-2 text-sm rounded-md flex items-center justify-center"></button>' +
+'</div>' +
+'</td>';
+var saveButton = row.querySelector('.save-user-role-btn');
+var deleteButton = row.querySelector('.delete-user-btn');
+if (saveButton) {
+saveButton.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+saveButton.onclick = function() { saveUserRole(this); };
+if (isCurrentUser) {
+saveButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+saveButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+saveButton.disabled = true;
+} else {
+saveButton.classList.add('bg-green-600', 'hover:bg-green-700');
+saveButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+saveButton.disabled = false;
+}
+}
+if (deleteButton) {
+deleteButton.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Delete</span>';
+deleteButton.onclick = function() { deleteUserHandler(this); };
+deleteButton.classList.add('bg-red-600', 'hover:bg-red-700');
+}
+userTableBody.appendChild(row);
+});
+}
+
+function saveUserRole(button) {
+var row = button.closest('tr');
+var userData = {
+email: row.cells[0].innerText,
+newRole: row.querySelector('select.user-role-select').value
+};
+var originalButtonHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+button.innerText = 'Saving...';
+button.disabled = true;
+google.script.run
+.withSuccessHandler(function() {
+button.innerText = 'Saved!';
+button.classList.add('btn-save-success');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(err) {
+console.error('Update user failed:', err);
+alert('Failed to update user: ' + err.message);
+button.innerText = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.updateUser(userData);
+}
+
+function deleteUserHandler(button) {
+var row = button.closest('tr');
+var emailToDelete = row.cells[0].innerText;
+if (currentUserInfo && emailToDelete.toLowerCase() === currentUserInfo.email.toLowerCase()) {
+alert("You cannot delete your own account.");
+return;
+}
+if (!confirm('Are you sure you want to permanently delete ' + emailToDelete + '? This action cannot be undone.')) {
+return;
+}
+button.innerText = 'Deleting...';
+button.disabled = true;
+google.script.run
+.withSuccessHandler(function() { row.remove(); }) 
+.withFailureHandler(function(err) {
+console.error('Delete user failed:', err);
+alert('Failed to delete user: ' + err.message);
+var deleteButton = row.querySelector('.delete-user-btn');
+if(deleteButton){
+deleteButton.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Delete</span>';
+deleteButton.disabled = false;
+deleteButton.classList.remove('btn-save-error');
+} else {
+button.innerText = 'Delete'; 
+button.disabled = false;
+}
+})
+.deleteUser(emailToDelete);
+}
+
+function addUserHandler(button) {
+var newUser = {
+email: document.getElementById('new-user-email').value.trim(),
+role: document.getElementById('new-user-role').value
+};
+if (!newUser.email) return alert('Please enter an email address.');
+button.innerText = 'Adding...';
+button.disabled = true;
+google.script.run
+.withSuccessHandler(function() {
+button.innerText = 'Added!';
+button.classList.add('btn-save-success');
+document.getElementById('new-user-email').value = '';
+google.script.run.withSuccessHandler(populateUserManagementTab).withFailureHandler(function(err) { console.error("Failed to refresh user list:", err); }).getUserData();
+setTimeout(function() {
+button.innerText = 'Add User';
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(err) {
+alert('Failed to add user: ' + err.message);
+button.innerText = 'Add User';
+button.disabled = false;
+})
+.addUser(newUser);
+}
+
+function saveChanges(button) {
+var row = button.closest('tr');
+var reportName = row.cells[0].innerText;
+var setDefaultCheckbox = row.querySelector('.set-default-checkbox');
+var reportData = {
+reportName: reportName,
+allocatedTo: row.querySelector('select').value,
+comments: row.querySelector('textarea').value, // CHANGED TO TEXTAREA
+dueTime: row.cells[3].innerText, 
+setAsDefault: setDefaultCheckbox ? setDefaultCheckbox.checked : false,
+originalAllocatedTo: row.dataset.originalAllocation 
+};
+var originalSaveChangesHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+button.innerHTML = 'Saving...';
+button.disabled = true;
+google.script.run
+.withSuccessHandler(function() {
+button.innerText = 'Saved!';
+button.classList.add('btn-save-success');
+row.dataset.originalAllocation = reportData.allocatedTo;
+setTimeout(function() {
+button.innerHTML = originalSaveChangesHTML;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(error) {
+alert('Failed to save changes: ' + error.message);
+button.innerHTML = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalSaveChangesHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.saveReportData(reportData);
+}
+
+function saveComment(button) {
+var row = button.closest('tr');
+var reportData = {
+reportName: row.cells[0].innerText,
+comments: row.querySelector('textarea').value // CHANGED TO TEXTAREA
+};
+var originalButtonText = 'Save Comments';
+button.innerText = 'Saving...';
+button.disabled = true;
+google.script.run
+.withSuccessHandler(function() {
+button.innerText = 'Saved!';
+button.classList.add('btn-save-success');
+setTimeout(function() {
+button.innerText = originalButtonText;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(error) {
+alert('Failed to save comment: ' + error.message);
+button.innerText = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerText = originalButtonText;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.saveCommentData(reportData);
+}
+
+function markComplete(button) {
+var row = button.closest('tr');
+var reportName = row.cells[0].innerText;
+var originalButtonText = 'Complete';
+button.disabled = true;
+button.innerText = 'Updating...';
+google.script.run
+.withSuccessHandler(function() { loadAppData(); }) 
+.withFailureHandler(function(error) {
+alert('Failed to mark complete: ' + error.message);
+console.error('Failed to mark complete:', error);
+button.disabled = false;
+button.innerText = 'Error!';
+setTimeout(function() { button.innerText = originalButtonText; }, 3000);
+})
+.markReportComplete(reportName);
+}
+
+function undoCompleteHandler(button) {
+var row = button.closest('tr');
+var reportName = row.cells[0].innerText;
+var originalButtonHTML = button.innerHTML;
+button.disabled = true;
+button.innerText = 'Undoing...';
+google.script.run
+.withSuccessHandler(function() { loadAppData(); }) 
+.withFailureHandler(function(error) {
+alert('Failed to undo completion: ' + error.message);
+console.error('Failed to undo:', error);
+button.disabled = false;
+button.innerHTML = originalButtonHTML;
+button.classList.add('btn-save-error');
+setTimeout(function() { button.classList.remove('btn-save-error'); }, 3000);
+})
+.undoReportComplete(reportName);
+}
+
+function sendReminderEmail(button) {
+var row = button.closest('tr');
+var reportName = row.cells[0].innerText;
+var recipientEmail = row.querySelector('select').value;
+var senderEmail = currentUserInfo.email;
+var originalButtonHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg><span>Email</span>';
+if (!recipientEmail) {
+alert("Please select a user to send the reminder to.");
+return;
+}
+button.disabled = true;
+button.innerText = 'Sending email...';
+google.script.run
+.withSuccessHandler(function() {
+button.innerText = 'Sent!';
+button.classList.add('btn-save-success');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(error) {
+alert('Failed to send email: ' + error.message);
+console.error('Failed to send email:', error);
+button.innerText = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.sendReminderEmail(recipientEmail, reportName, senderEmail);
+}
+
+function confirmDelete(button) {
+var originalText = button.innerHTML;
+var originalClasses = button.className;
+if (button.dataset.confirmed) {
+var row = button.closest('tr');
+var reportName = row.cells[0].innerText;
+button.disabled = true;
+button.innerText = "Deleting...";
+google.script.run
+.withSuccessHandler(function() { row.remove(); }) 
+.withFailureHandler(function(error) {
+alert('Failed to delete report: ' + error.message);
+console.error('Delete failed:', error);
+button.innerText = "Error!";
+setTimeout(function() {
+button.disabled = false;
+button.innerHTML = originalText;
+button.className = originalClasses;
+delete button.dataset.confirmed;
+}, 3000);
+})
+.deleteReport(reportName);
+} else {
+button.innerHTML = "Confirm Delete?";
+button.classList.add('btn-delete-confirm');
+button.dataset.confirmed = "true";
+setTimeout(function() {
+if (button.dataset.confirmed) {
+button.innerHTML = originalText;
+button.className = originalClasses;
+delete button.dataset.confirmed;
+}
+}, 4000);
+}
+}
+
+function populateScheduleTable(scheduleData, allUsers) {
+var tableBody = document.getElementById('schedule-table-body');
+if (!tableBody) return;
+tableBody.innerHTML = '';
+document.getElementById('schedule-loader').style.display = 'none';
+document.getElementById('schedule-table').classList.remove('hidden');
+var scheduleFilterCheckboxes = Array.from(document.querySelectorAll('#schedule-user-filter-list input:checked'));
+var selectedScheduleUsers = scheduleFilterCheckboxes.map(function(cb) { return cb.value; }).filter(function(value) { return value !== ""; });
+var isAllScheduleUsersSelected = scheduleFilterCheckboxes.some(function(cb) { return cb.value === "" && cb.checked; });
+var currentAllocationMap = {};
+if (Array.isArray(allReportsData)) {
+allReportsData.forEach(function(report) {
+if (report.reportName) {
+currentAllocationMap[report.reportName] = report.allocatedTo || '';
+}
+});
+}
+var scheduleDataToDisplay = scheduleData;
+if (currentUserInfo && currentUserInfo.isAdmin && !isAllScheduleUsersSelected && selectedScheduleUsers.length > 0) {
+if(Array.isArray(scheduleData)) {
+scheduleDataToDisplay = scheduleData.filter(function(row) {
+var currentAllocation = currentAllocationMap[row.reportName] || '';
+return selectedScheduleUsers.includes(currentAllocation);
+});
+} else {
+scheduleDataToDisplay = [];
+}
+} else if (!Array.isArray(scheduleData)) {
+scheduleDataToDisplay = [];
+}
+if (!scheduleDataToDisplay || scheduleDataToDisplay.length === 0) {
+var noResultsMsg = isAllScheduleUsersSelected ? 'No reports found in "Report List" or failed to load override data.' : 'No reports currently allocated to the selected user(s).';
+tableBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">' + noResultsMsg + '</td></tr>';
+return;
+}
+var createUserSelect = function(userList, selectedValue, includeUnassigned) {
+if (includeUnassigned === void 0) { includeUnassigned = false; }
+var options = '';
+if (includeUnassigned) {
+options += '<option value="" ' + (selectedValue === '' ? 'selected' : '') + '>None (Use Default)</option>';
+}
+if (Array.isArray(userList)) {
+userList.forEach(function(user) {
+var selected = (user === selectedValue) ? 'selected' : '';
+options += '<option value="' + user + '" ' + selected + '>' + formatEmailToName(user) + '</option>'; 
+});
+}
+return '<select class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">' + options + '</select>';
+};
+var userListForDropdown = Array.isArray(allUsers) ? allUsers : [];
+var allUsersWithNoneOption = [''].concat(userListForDropdown);
+scheduleDataToDisplay.forEach(function(row) {
+    var tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-50';
+    tr.innerHTML =
+    '<td class="p-4 font-bold whitespace-normal max-w-[200px]" data-report-name="' + row.reportName + '">' + row.reportName + '</td>' +   
+    '<td class="p-4 whitespace-nowrap" data-default-user="' + (row.defaultUser || '') + '">' + 
+        (formatEmailToName(row.defaultUser) || '<span class="text-gray-400">Not Set</span>') + 
+    '</td>' +
+    '<td class="p-4 whitespace-nowrap text-sm text-gray-500">' + (row.frequency || '-') + '</td>' +
+    '<td class="p-4 whitespace-nowrap text-sm text-gray-500">' + (row.runDay || '-') + '</td>' +
+    '<td class="p-4 whitespace-nowrap text-gray-600 font-medium">' + (row.nextRunDate || '-') + '</td>' +
+    '<td class="p-4">' + createUserSelect(allUsersWithNoneOption, row.overrideUser, true) + '</td>' +
+    '<td class="p-4"><input type="date" class="w-full p-2 border border-gray-300 rounded-md" value="' + row.overrideStart + '"></td>' +
+    '<td class="p-4"><input type="date" class="w-full p-2 border border-gray-300 rounded-md" value="' + row.overrideEnd + '"></td>' +
+    '<td class="p-4">' +
+    '<button onclick="saveScheduleRow(this)" class="w-full bg-green-600 text-white py-1 px-2 text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center justify-center">' +
+    '<svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg>' +
+    '<span>Save Override</span>' +
+    '</button>' +
+    '</td>';
+    tableBody.appendChild(tr);
+});
+}
+
+function saveScheduleRow(button) {
+var row = button.closest('tr');
+var cells = row.cells;
+var scheduleData = {
+reportName: row.querySelector('[data-report-name]').dataset.reportName,
+overrideUser: cells[5].querySelector('select').value,
+overrideStart: cells[6].querySelector('input').value,
+overrideEnd: cells[7].querySelector('input').value
+};
+var defaultUserInRow = cells[1].dataset.defaultUser || ''; 
+if ((scheduleData.overrideStart && !scheduleData.overrideEnd) || (!scheduleData.overrideStart && scheduleData.overrideEnd)) {
+alert("Please provide both an Override Start and End Date, or leave both blank/unset to clear the override.");
+return;
+}
+if (scheduleData.overrideStart && scheduleData.overrideEnd) {
+try {
+const startDate = new Date(scheduleData.overrideStart + 'T00:00:00Z');
+const endDate = new Date(scheduleData.overrideEnd + 'T00:00:00Z');
+if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+alert("Invalid date format detected.");
+return;
+}
+if (endDate.getTime() < startDate.getTime()) {
+alert("Override End Date cannot be before the Start Date.");
+return;
+}
+} catch(e) {
+alert("Error comparing dates.");
+console.error("Error checking date range:", e);
+return;
+}
+}
+if (!scheduleData.overrideUser) {
+if (scheduleData.overrideStart || scheduleData.overrideEnd) {
+scheduleData.overrideStart = '';
+scheduleData.overrideEnd = '';
+cells[3].querySelector('input').value = '';
+cells[4].querySelector('input').value = '';
+alert("Override User set to 'None'. Start and End dates will also be cleared upon saving.");
+}
+} else if (!scheduleData.overrideStart || !scheduleData.overrideEnd) {
+alert("Please provide both Start and End dates when specifying an Override User.");
+return;
+}
+var originalButtonHTML = button.innerHTML;
+button.disabled = true;
+button.innerText = 'Saving...';
+google.script.run
+.withSuccessHandler(function() {
+var index = -1;
+if (Array.isArray(allScheduleDataGlobal)) {
+index = allScheduleDataGlobal.findIndex(function(item) { return item.reportName === scheduleData.reportName; });
+} else {
+allScheduleDataGlobal = [];
+}
+if (index > -1) {
+allScheduleDataGlobal[index].overrideUser = scheduleData.overrideUser;
+allScheduleDataGlobal[index].overrideStart = scheduleData.overrideStart;
+allScheduleDataGlobal[index].overrideEnd = scheduleData.overrideEnd;
+} else {
+allScheduleDataGlobal.push({
+reportName: scheduleData.reportName,
+defaultUser: defaultUserInRow,
+overrideUser: scheduleData.overrideUser,
+overrideStart: scheduleData.overrideStart,
+overrideEnd: scheduleData.overrideEnd
+});
+allScheduleDataGlobal.sort(function(a,b) { return a.reportName.localeCompare(b.reportName); });
+}
+var userToApplyToReportList = defaultUserInRow; 
+var isOverrideActiveToday = false;
+if (scheduleData.overrideUser && scheduleData.overrideStart && scheduleData.overrideEnd) {
+try {
+var today = new Date();
+today.setHours(0, 0, 0, 0);
+var startDate = new Date(scheduleData.overrideStart + 'T00:00:00Z');
+var endDate = new Date(scheduleData.overrideEnd + 'T00:00:00Z');
+if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+var startTime = startDate.getTime();
+var endTime = endDate.getTime();
+var todayUTCStart = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+if (todayUTCStart >= startTime && todayUTCStart <= endTime) {
+isOverrideActiveToday = true;
+}
+} 
+} catch (dateError) { console.error("Error checking date range:", dateError); }
+}
+if (isOverrideActiveToday) { userToApplyToReportList = scheduleData.overrideUser; }
+else { userToApplyToReportList = defaultUserInRow; }
+
+google.script.run
+.withSuccessHandler(function() {
+button.innerHTML = 'Saved!';
+button.classList.add('btn-save-success');
+google.script.run.withSuccessHandler(function(reports) {
+allReportsData = reports;
+populateTable(allUsersData, allReportsData, currentUserInfo);
+google.script.run.withSuccessHandler(function(scheduleData){
+allScheduleDataGlobal = scheduleData || [];
+populateScheduleTable(allScheduleDataGlobal, allUsersData);
+}).getScheduleData();
+google.script.run
+    .withSuccessHandler(function(infoData) {
+        if (infoData) {
+            renderKeyInfoTable('table-demand', infoData.demand);
+            renderKeyInfoTable('table-dsv', infoData.dsv);
+            renderKeyInfoTable('table-certs', infoData.certs);
+        }
+    })
+    .getKeyInfoData();
+}).getReportData();
+
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 2000);
+})
+.withFailureHandler(function(err) {
+alert('Saved override to Cover Tab, but failed to update Report List: ' + err.message);
+console.error("Failed to update Report List:", err);
+button.innerHTML = 'Partial Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 4000);
+})
+.updateReportListAllocation(scheduleData.reportName, userToApplyToReportList);
+})
+.withFailureHandler(function(err) {
+alert('Failed to save schedule override: ' + err.message);
+console.error("Failed to save to Cover Tab:", err);
+button.innerHTML = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.saveScheduleData(scheduleData); 
+}
+
+function applyDailyAllocation() {
+var button = document.getElementById('apply-schedule-changes-btn');
+if (!button) return;
+var originalButtonHTML = button.innerHTML;
+button.disabled = true;
+button.innerText = 'Applying...';
+google.script.run
+.withSuccessHandler(function() {
+button.innerHTML = 'Applied!';
+button.classList.add('btn-save-success');
+google.script.run.withSuccessHandler(function(reports) {
+allReportsData = reports;
+populateTable(allUsersData, allReportsData, currentUserInfo);
+google.script.run.withSuccessHandler(function(scheduleData){
+allScheduleDataGlobal = scheduleData || [];
+populateScheduleTable(allScheduleDataGlobal, allUsersData);
+}).getScheduleData();
+}).getReportData();
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-success');
+}, 3000);
+})
+.withFailureHandler(function(err) {
+alert('Failed to apply changes: ' + err.message);
+button.innerHTML = 'Error!';
+button.classList.add('btn-save-error');
+setTimeout(function() {
+button.innerHTML = originalButtonHTML;
+button.disabled = false;
+button.classList.remove('btn-save-error');
+}, 3000);
+})
+.updateDailyAllocation();
+}
+
+function setupKpiInteractions() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    const todayTime = today.getTime();
+    const kpiMap ={
+"kpi-due-today": (r) => r.nextRunDate === getTodayISO(),
+"kpi-completed-today": (r) => { return !!r.completedDate && r.completedDate.startsWith(getTodayISO()); },
+"kpi-outstanding-today": (r) => r.nextRunDate === getTodayISO() && !r.completedDate, 
+"kpi-active-projects": (r) => r.frequency && r.frequency.trim().toLowerCase() === 'project' && !r.completedDate, 
+"kpi-unassigned-today": (r) => { return r.nextRunDate === getTodayISO() && !r.completedDate && (!r.allocatedTo || r.allocatedTo.trim() === ''); },
+"kpi-historic-projects": (r) => { 
+if (!r.completedDate) return false;
+if (!r.frequency || r.frequency.trim().toLowerCase() !== 'project') return false;
+if (!r.nextRunDate) return false;
+return r.nextRunDate < getTodayISO();
+},
+"kpi-queue-backlog": (r) => {
+    const freq = r.frequency ? r.frequency.trim().toLowerCase() : '';
+    if (freq === 'weekly' || freq === 'monthly') {
+        if (r.nextRunDate) { 
+            try {
+                const nextRunDateStr = r.nextRunDate; 
+                const nextRunDateTime = new Date(nextRunDateStr);
+                if (!isNaN(nextRunDateTime.getTime())) {
+                    return nextRunDateTime.getTime() > todayTime;
+                }
+            } catch (e) { console.error("Error parsing Col F date for backlog filter:", r.nextRunDate, e); return false; }
+        }
+    }
+    return false; 
+},
+"kpi-project-completion-rate": (r) => { return r.frequency && r.frequency.trim().toLowerCase() === 'project'; },
+"kpi-avg-cycle-time": (r) => { return !!r.completedDate && r.frequency && r.frequency.trim().toLowerCase() === 'project'; },
+"kpi-otd-rate": (r) => { const isProject = r.frequency && r.frequency.trim().toLowerCase() === 'project'; return !isProject && !!r.completedDate && r.completedDate.startsWith(getTodayISO()); },
+"kpi-avg-wip-user": (r) => {
+    const isProject = r.frequency && r.frequency.trim().toLowerCase() === 'project';
+    const isCompleted = !!r.completedDate;
+    const shouldHide = (isProject && isCompleted && r.nextRunDate && r.nextRunDate < getTodayISO());
+    return !isCompleted && (r.nextRunDate === getTodayISO() || (isProject && !shouldHide));
+},
+"kpi-avg-team-load": (r) => {
+    const isProject = r.frequency && r.frequency.trim().toLowerCase() === 'project';
+    const isCompleted = !!r.completedDate;
+    const shouldHide = (isProject && isCompleted && r.nextRunDate && r.nextRunDate < getTodayISO());
+    return !isCompleted && (r.nextRunDate === getTodayISO() || (isProject && !shouldHide));
+}
+};
+
+Object.keys(kpiMap).forEach((id) => {
+const el = document.getElementById(id);
+if (el) {
+el.closest('.kpi-card').style.cursor = "pointer"; 
+el.closest('.kpi-card').setAttribute('role','button');
+el.closest('.kpi-card').addEventListener("click", function () {
+const filterFunc = kpiMap[id];
+if (!filterFunc) return;
+const filteredReports = (allReportsData || []).filter(filterFunc);
+showTab("workflow");
+setTimeout(function() {
+populateTable(allUsersData, filteredReports, currentUserInfo);
+}, 50);
+let clearBtn = document.getElementById('clear-kpi-filter-btn');
+const filterContainer = document.getElementById('filter-container');
+if (!clearBtn) {
+clearBtn = document.createElement('button');
+clearBtn.id = 'clear-kpi-filter-btn';
+clearBtn.className = 'ml-4 bg-gray-200 text-gray-800 py-1 px-3 rounded';
+clearBtn.onclick = function() {
+populateTable(allUsersData, allReportsData, currentUserInfo);
+clearBtn.remove();
+};
+if (filterContainer) filterContainer.appendChild(clearBtn);
+}
+clearBtn.innerText = `Clear KPI Filter: ${id.replace('kpi-','').replace('-',' ').toUpperCase()}`;
+});
+}
+});
+}
+
+function timeToMinutes(timeStr) {
+if (!timeStr) return 0;
+const parts = timeStr.split(':');
+if (parts.length < 2) return 0; 
+return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+function getTodayISO() {
+const today = new Date();
+const userOffset = today.getTimezoneOffset() * 60000;
+return new Date(today - userOffset).toISOString().split("T")[0];
+}
+
+function populateReportUrlManagementTab(reports) {
+    var tableBody = document.getElementById('report-url-table-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    if (!reports || reports.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No reports found.</td></tr>';
+        return;
+    }
+    var sortedReports = [].concat(reports).sort(function(a, b) {
+        var nameA = String(a.reportName || '').toLowerCase();
+        var nameB = String(b.reportName || '').toLowerCase();
+        return nameA.localeCompare(nameB); 
+    });
+    sortedReports.forEach(function(report) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        var nameCell = document.createElement('td');
+        nameCell.className = 'p-4 whitespace-nowrap';
+        nameCell.textContent = report.reportName;
+        tr.appendChild(nameCell);
+        var urlCell = document.createElement('td');
+        urlCell.className = 'p-4 w-96 max-w-96';
+        var urlInput = document.createElement('input');
+        urlInput.type = 'text';
+        urlInput.value = report.reportLink || '';
+        urlInput.placeholder = 'Enter new URL...';
+        urlInput.className = 'w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500';
+        urlCell.appendChild(urlInput);
+        tr.appendChild(urlCell);
+        var actionCell = document.createElement('td');
+        actionCell.className = 'p-4';
+        var saveBtn = document.createElement('button');
+        saveBtn.onclick = function() { saveReportUrl(this); };
+        saveBtn.className = 'w-full bg-green-600 text-white py-1 px-2 text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center justify-center';
+        saveBtn.innerHTML = '<svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+        actionCell.appendChild(saveBtn);
+        tr.appendChild(actionCell);
+        tableBody.appendChild(tr);
+    });
+}
+
+function saveReportUrl(button) {
+    var row = button.closest('tr');
+    var reportName = row.cells[0].innerText;
+    var newUrl = row.cells[1].querySelector('input').value;
+    var originalButtonHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerText = 'Saving...';
+    google.script.run
+        .withSuccessHandler(function() {
+            button.innerHTML = 'Saved!';
+            button.classList.add('btn-save-success');
+            try {
+                var reportInGlobalData = allReportsData.find(function(r) { return r.reportName === reportName; });
+                if (reportInGlobalData) { reportInGlobalData.reportLink = newUrl; }
+            } catch (e) { console.error("Failed to update global data cache:", e); }
+            setTimeout(function() {
+                button.innerHTML = originalButtonHTML;
+                button.disabled = false;
+                button.classList.remove('btn-save-success');
+            }, 2000);
+        })
+        .withFailureHandler(function(err) {
+            alert('Failed to save URL: ' + err.message);
+            button.innerHTML = 'Error!';
+            button.classList.add('btn-save-error');
+            setTimeout(function() {
+                button.innerHTML = originalButtonHTML;
+                button.disabled = false;
+                button.classList.remove('btn-save-error');
+            }, 3000);
+        })
+        .saveReportUrl(reportName, newUrl);
+}
+
+function populateUsefulLinksTab(links) {
+    var tableBody = document.getElementById('useful-links-table-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = ''; 
+    if (!links || links.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No useful links found. Add one below.</td></tr>';
+        return;
+    }
+    links.sort((a, b) => a.name.localeCompare(b.name)); 
+    links.forEach(function(link) {
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        var nameCell = document.createElement('td');
+        nameCell.className = 'p-4 whitespace-nowrap font-medium';
+        nameCell.textContent = link.name;
+        var urlCell = document.createElement('td');
+        urlCell.className = 'p-4';
+        var linkTag = document.createElement('a');
+        linkTag.href = link.url;
+        linkTag.target = '_blank';
+        linkTag.className = 'text-blue-600 hover:text-blue-800 underline break-all';
+        linkTag.textContent = link.url;
+        urlCell.appendChild(linkTag);
+        var urlInput = document.createElement('input');
+        urlInput.type = 'text';
+        urlInput.value = link.url;
+        urlInput.className = 'w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-2';
+        urlCell.appendChild(urlInput);
+        var actionCell = document.createElement('td');
+        actionCell.className = 'p-4';
+        var actionDiv = document.createElement('div');
+        actionDiv.className = 'flex flex-col space-y-2';
+        var saveBtn = document.createElement('button');
+        saveBtn.onclick = function() { saveUsefulLink(this); };
+        saveBtn.className = 'w-full bg-green-600 text-white py-1 px-2 text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center justify-center';
+        saveBtn.innerHTML = '<svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"/></svg><span>Save</span>';
+        actionDiv.appendChild(saveBtn);
+        var deleteBtn = document.createElement('button');
+        deleteBtn.onclick = function() { deleteUsefulLink(this); };
+        deleteBtn.className = 'w-full bg-red-600 text-white py-1 px-2 text-sm rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center justify-center';
+        deleteBtn.innerHTML = '<svg class="w-4 h-4 mr-1 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span>Delete</span>';
+        actionDiv.appendChild(deleteBtn);
+        actionCell.appendChild(actionDiv);
+        tr.appendChild(nameCell);
+        tr.appendChild(urlCell);
+        tr.appendChild(actionCell);
+        tableBody.appendChild(tr);
+    });
+}
+
+function saveUsefulLink(button) {
+    var row = button.closest('tr');
+    var linkData = {
+        name: row.cells[0].textContent, 
+        newUrl: row.cells[1].querySelector('input[type="text"]').value
+    };
+    var originalButtonHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = 'Saving...';
+    google.script.run
+        .withSuccessHandler(function() {
+            button.innerHTML = 'Saved!';
+            button.classList.add('btn-save-success');
+            var linkInGlobalData = allUsefulLinksData.find(r => r.name === linkData.name);
+            if (linkInGlobalData) linkInGlobalData.url = linkData.newUrl;
+            row.cells[1].querySelector('a').href = linkData.newUrl;
+            row.cells[1].querySelector('a').textContent = linkData.newUrl;
+            setTimeout(function() {
+                button.innerHTML = originalButtonHTML;
+                button.disabled = false;
+                button.classList.remove('btn-save-success');
+            }, 2000);
+        })
+        .withFailureHandler(function(err) {
+            alert('Failed to save link: ' + err.message);
+            button.innerHTML = 'Error!';
+            button.classList.add('btn-save-error');
+            setTimeout(function() {
+                button.innerHTML = originalButtonHTML;
+                button.disabled = false;
+                button.classList.remove('btn-save-error');
+            }, 3000);
+        })
+        .updateUsefulLink(linkData);
+}
+
+function deleteUsefulLink(button) {
+    var row = button.closest('tr');
+    var linkName = row.cells[0].textContent;
+    if (!confirm(`Are you sure you want to delete the link "${linkName}"?`)) { return; }
+    var originalButtonHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = 'Deleting...';
+    google.script.run
+        .withSuccessHandler(function() {
+            allUsefulLinksData = allUsefulLinksData.filter(r => r.name !== linkName);
+            row.remove(); 
+        })
+        .withFailureHandler(function(err) {
+            alert('Failed to delete link: ' + err.message);
+            button.innerHTML = 'Error!';
+            button.classList.add('btn-save-error');
+            setTimeout(function() {
+                button.innerHTML = originalButtonHTML;
+                button.disabled = false;
+                button.classList.remove('btn-save-error');
+            }, 3000);
+        })
+        .deleteUsefulLink(linkName);
+}
+
+function addUsefulLinkHandler(button) {
+    var linkData = {
+        name: document.getElementById('new-link-name').value.trim(),
+        url: document.getElementById('new-link-url').value.trim()
+    };
+    if (!linkData.name || !linkData.url) {
+        alert('Please provide both a Link Name and a URL.');
+        return;
+    }
+    var originalButtonHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = 'Adding...';
+    google.script.run
+        .withSuccessHandler(function() {
+            button.innerHTML = 'Added!';
+            button.classList.add('btn-save-success');
+            allUsefulLinksData.push(linkData);
+            populateUsefulLinksTab(allUsefulLinksData);
+            document.getElementById('new-link-name').value = '';
+            document.getElementById('new-link-url').value = '';
+            setTimeout(function() {
+                button.innerHTML = 'Add New Link';
+                button.disabled = false;
+                button.classList.remove('btn-save-success');
+            }, 2000);
+        })
+        .withFailureHandler(function(err) {
+            alert('Failed to add link: ' + err.message);
+            button.innerHTML = 'Add New Link';
+            button.disabled = false;
+        })
+        .addUsefulLink(linkData);
+}
+
+function renderKeyInfoTable(tableId, data) {
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    if (!data || data.length === 0) {
+        table.innerHTML = '<tbody><tr><td class="p-4 text-gray-500">No data found in range.</td></tr></tbody>';
+        return;
+    }
+    table.style.fontFamily = "'Roboto', sans-serif";
+    var html = '<tbody class="divide-y divide-gray-200">';
+    var colCount = data[0].length; 
+    for (var i = 0; i < data.length; i++) {
+        if (data[i].join('').trim() === '') continue;
+        if (tableId === 'table-dsv' && (i === 0 || i === 3)) {
+            html += '<tr class="bg-white hover:bg-gray-50">'; 
+            var leftText = data[i][0] || '';
+            html += '<td colspan="2" class="px-6 py-4 text-left border-b border-gray-200 text-black font-medium">' + leftText + '</td>';
+            var rightText = '';
+            if (i === 0) { rightText = data[0][3] || ''; } else { rightText = (data[i+1] && data[i+1][0]) ? data[i+1][0] : ''; }
+            html += '<td colspan="4" class="px-6 py-4 text-left pl-12 border-b border-gray-200 text-black">' + rightText + '</td>';
+            html += '</tr>';
+            if (i === 3) i++; 
+            continue;
+        }
+        html += '<tr class="bg-white hover:bg-gray-50">';
+        data[i].forEach(function(cell) {
+            html += '<td class="px-6 py-4 whitespace-nowrap border-b border-gray-200 text-left text-black">' + (cell || '') + '</td>';
+        });
+        html += '</tr>';
+    }
+    html += '</tbody>';
+    table.innerHTML = html;
+}
+</script>
+</body>
+</html>
