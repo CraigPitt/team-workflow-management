@@ -1290,4 +1290,1195 @@ function saveReportUrl(reportName, newUrl) {
   }
 
   try {
-    const ss = SpreadsheetApp.
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(REPORT_LIST_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${REPORT_LIST_SHEET_NAME}" not found.`);
+
+    const lastReportRow = sheet.getLastRow();
+    if (lastReportRow < REPORT_LIST_HEADER_ROWS + 1) throw new Error("Report List sheet is empty.");
+    
+    const reportNamesRange = sheet.getRange(REPORT_LIST_HEADER_ROWS + 1, COL.REPORT_NAME, lastReportRow - REPORT_LIST_HEADER_ROWS, 1);
+    const reportNames = reportNamesRange.getDisplayValues().flat();
+    const searchReportNameLowerTrimmed = reportName.trim().toLowerCase();
+    
+    const rowIndex = reportNames.findIndex(name => 
+        (name || '').toString().trim().toLowerCase() === searchReportNameLowerTrimmed
+    );
+    
+    if (rowIndex === -1) throw new Error(`Report "${reportName}" not found.`);
+
+    const rowToUpdate = rowIndex + REPORT_LIST_HEADER_ROWS + 1;
+    
+    const urlCell = sheet.getRange(rowToUpdate, COL.REPORT_LINK);
+    const oldUrl = urlCell.getValue() || "(Empty)";
+
+    urlCell.setValue(newUrl || '');
+    
+    const logDetails = `Report: ${reportName} | Old URL: ${oldUrl} | New URL: ${newUrl || '(Empty)'}`;
+    logAction("Update Report URL", logDetails, currentUserEmail);
+
+    return "Report URL saved successfully.";
+  } catch (e) {
+    console.error(`Error in saveReportUrl:`, e);
+    throw new Error(e.message || 'Failed to save report URL.');
+  } finally {
+    lock.releaseLock(); 
+  }
+}
+
+/**
+ * Saves a single row of override data back to the "Cover Tab" sheet.
+ * Admin only.
+ * @param {object} scheduleRow - The override data object { reportName, overrideUser, overrideStart, overrideEnd }.
+ */
+function saveScheduleData(scheduleRow) {
+  if (!getUserInfo().isAdmin) {
+    throw new Error("Permission denied. Only admins can save schedule data.");
+  }
+
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(COVER_TAB_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${COVER_TAB_SHEET_NAME}" not found.`);
+
+    const reportNames = sheet.getRange('A2:A' + sheet.getLastRow()).getDisplayValues().flat();
+    const searchReportName = (scheduleRow.reportName || '').toString().trim();
+    
+    const rowIndex = reportNames.findIndex(name => (name || '').toString().trim() === searchReportName);
+    
+    if (rowIndex === -1) {
+        throw new Error(`Report "${searchReportName}" not found in "${COVER_TAB_SHEET_NAME}" sheet.`);
+    }
+
+    const rowToUpdate = rowIndex + 2;
+
+   const valuesToSet = [
+      scheduleRow.overrideUser,
+      scheduleRow.overrideStart || null, 
+      scheduleRow.overrideEnd || null   
+    ];
+    
+    sheet.getRange(rowToUpdate, 8, 1, 3).setValues([valuesToSet]);
+  } catch (e) {
+    console.error('Error in saveScheduleData:', e);
+    throw new Error(e.message || 'Failed to save schedule override data.');
+  }
+}
+
+/**
+ * Sends a reminder email to the assigned user using a rich HTML template.
+ * @param {string} recipientEmail - The email address of the user to remind.
+ * @param {string} reportName - The name of the report.
+ * @param {string} senderEmail - The email of the admin sending the reminder.
+ */
+function sendReminderEmail(recipientEmail, reportName, senderEmail) {
+  if (!recipientEmail || !reportName || !senderEmail) {
+    throw new Error("Recipient, report name, and sender email are required.");
+  }
+
+  const appUrl = ScriptApp.getService().getUrl();
+  const subject = `Reminder: Task Completion Required for "${reportName}"`;
+
+  const logoFileId = 'YOUR_LOGO_DRIVE_FILE_ID';
+  const logoBlob = DriveApp.getFileById(logoFileId).getBlob().setName('logo.png');
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        
+        <div style="background-color: #2B5797; color: #fff; padding: 20px; text-align: center;">
+          <img src="cid:logo" alt="Company Logo" style="max-height: 45px; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 22px;">Task Reminder</h2>
+        </div>
+        
+        <div style="padding: 25px;">
+          <p>Hello,</p>
+          <p>This is a friendly reminder that the report "<b>${reportName}</b>" is assigned to you and has not yet been marked as completed.</p>
+          <p>Please review it in the workflow management tool as soon as possible.</p>
+        
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}" style="background-color: #6366f1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Access Workflow Tool
+            </a>
+          </div>
+
+          <p style="font-size:0.9em; color:#888; border-top:1px solid #eee; padding-top:15px;">
+            This reminder was sent by: ${senderEmail}
+          </p>
+        </div>
+        
+        <div style="background-color: #f9f9f9; padding: 15px 25px; font-size: 0.9em; color: #555; border-top: 1px solid #eee;">
+          <p>Thank you,<br>Company MI Workflow Management</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      inlineImages: { logo: logoBlob }, 
+      noReply: true,
+      name: 'Company Workflow (No Reply)',
+      replyTo: senderEmail 
+    });
+    Logger.log(`Reminder email successfully sent to ${recipientEmail}`);
+  } catch (e) {
+    Logger.log(`Failed to send reminder email to ${recipientEmail}: ${e}`);
+    throw new Error('Failed to send reminder email. Please ensure script has Gmail permissions.');
+  }
+}
+
+/**
+ * Deletes a report row from "Cover Tab" first, then from
+ * "Report List", "Default Users", and "Form responses 1".
+ * Admin only.
+ * @param {string} reportName The name of the report to delete.
+ */
+function deleteReport(reportName) {
+  const userInfo = getUserInfo();
+  
+  if (!userInfo.isAdmin) {
+    Logger.log(`deleteReport: Permission denied for user ${userInfo.email} trying to delete ${reportName}`);
+    throw new Error("Permission denied. Only admins can delete reports.");
+  }
+
+  logAction("deleteReport", `Report: ${reportName}`, userInfo.email);
+  
+  if (!reportName) {
+     Logger.log("deleteReport: Called with empty report name.");
+     throw new Error("Report name cannot be empty.");
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reportNameToDelete = reportName.trim();
+
+  // 2. Delete from "Cover Tab" first
+  try {
+    const coverSheet = ss.getSheetByName(COVER_TAB_SHEET_NAME);
+    if (coverSheet) {
+      const data = coverSheet.getDataRange().getDisplayValues();
+      for (let i = data.length - 1; i >= 0; i--) {
+        const currentReportName = (data[i][0] || '').toString().trim();
+        if (currentReportName === reportNameToDelete) {
+          coverSheet.deleteRow(i + 1);
+          Logger.log(`deleteReport: Deleted row ${i + 1} for "${reportNameToDelete}" from ${COVER_TAB_SHEET_NAME}.`);
+          break;
+        }
+      }
+    } else {
+        Logger.log(`deleteReport: Sheet "${COVER_TAB_SHEET_NAME}" not found. Skipping deletion for this sheet.`);
+    }
+  } catch(e) {
+      Logger.log(`deleteReport: Error deleting from ${COVER_TAB_SHEET_NAME}: ${e}`);
+      console.error(`Error deleting from ${COVER_TAB_SHEET_NAME}:`, e);
+  }
+
+  // 3. Delete from other specified sheets
+  const otherSheetNames = [REPORT_LIST_SHEET_NAME, DEFAULT_USERS_SHEET_NAME, FORM_RESPONSES_SHEET_NAME];
+  otherSheetNames.forEach(sheetName => {
+    try {
+        const sheet = ss.getSheetByName(sheetName);
+        if (sheet) { 
+          const data = sheet.getDataRange().getDisplayValues(); 
+          const columnIndex = (sheetName === FORM_RESPONSES_SHEET_NAME) ? 1 : 0; 
+          
+          for (let i = data.length - 1; i >= 0; i--) {
+            const currentReportName = (data[i][columnIndex] || '').toString().trim();
+            if (currentReportName === reportNameToDelete) {
+              sheet.deleteRow(i + 1);
+              Logger.log(`deleteReport: Deleted row ${i + 1} for "${reportNameToDelete}" from ${sheetName}.`);
+              
+              if (sheetName !== FORM_RESPONSES_SHEET_NAME) {
+                  break;
+              }
+            }
+          }
+        } else {
+            Logger.log(`deleteReport: Sheet "${sheetName}" not found. Skipping deletion for this sheet.`);
+        }
+    } catch(e) {
+        Logger.log(`deleteReport: Error deleting from ${sheetName}: ${e}`);
+        console.error(`Error deleting from ${sheetName}:`, e);
+    }
+  });
+  Logger.log(`deleteReport: Finished deletion process for report "${reportNameToDelete}".`);
+}
+
+/**
+ * Sends a notification email to a user when they are assigned a new task.
+ * @param {string} recipientEmail - The email address of the user being assigned.
+ * @param {string} reportName - The name of the report.
+ * @param {string} adminEmail - The email of the admin who assigned the task.
+ */
+function sendAssignmentEmail(recipientEmail, reportName, adminEmail) {
+  if (!recipientEmail || !reportName || !adminEmail) {
+    Logger.log("Missing data for assignment email. Skipping.");
+    return;
+  }
+
+  const appUrl = ScriptApp.getService().getUrl();
+  const subject = `New Task Assignment: "${reportName}"`;
+
+  const logoFileId = 'YOUR_LOGO_DRIVE_FILE_ID';
+  const logoBlob = DriveApp.getFileById(logoFileId).getBlob().setName('logo.png');
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        
+        <div style="background-color: #2B5797; color: #fff; padding: 20px; text-align: center;">
+          <img src="cid:logo" alt="Company Logo" style="max-height: 45px; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 22px;">New Task Assigned</h2>
+        </div>
+        
+        <div style="padding: 25px;">
+          <p>Hello,</p>
+          <p>You have been assigned a new task:</p>
+          <p style="font-size:1.2em; font-weight:bold; margin: 10px 0;">${reportName}</p>
+          <p>Please review it in the workflow management tool.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}" style="background-color: #6366f1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Access Workflow Tool
+            </a>
+          </div>
+
+          <p style="font-size:0.9em; color:#888; border-top:1px solid #eee; padding-top:15px;">
+            This task was assigned to you by: ${adminEmail}
+          </p>
+        </div>
+        
+        <div style="background-color: #f9f9f9; padding: 15px 25px; font-size: 0.9em; color: #555; border-top: 1px solid #eee;">
+          <p>Thank you,<br>Company MI Workflow Management</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      inlineImages: { logo: logoBlob }, 
+      noReply: true,
+      name: 'Company Workflow (No Reply)',
+      replyTo: adminEmail 
+    });
+    Logger.log(`Assignment email successfully sent to ${recipientEmail}`);
+  } catch (e) {
+    Logger.log(`Failed to send assignment email to ${recipientEmail} for report ${reportName}. Error: ${e}`);
+  }
+}
+
+/**
+ * Sends a daily task summary email with embedded image and HTML formatting.
+ * Uses MailApp with noReply:true so it sends from the domain's NoReply address.
+ *
+ * @param {string} recipientEmail - The recipient’s email address.
+ * @param {string[]} tasks - Array of task names.
+ * @param {string} appUrl - Link to the workflow tool.
+ * @param {string} dateString - e.g. "21/10/2025".
+ */
+function sendDailyTaskEmail(recipientEmail, tasks, appUrl, dateString) {
+  const subject = `Your Daily Workflow Tasks - ${dateString}`;
+  
+  const plainTextBody =
+    `Hello,\n\nHere are your assigned workflow tasks for today (${dateString}):\n` +
+    tasks.map(t => ` • ${t}`).join('\n') +
+    `\n\nPlease access the workflow tool to complete them:\n${appUrl}\n\nThank you,\nCompany MI Workflow Management`;
+    
+  const htmlTaskList = tasks.map(t => `<li style="margin-bottom:6px;"><b>${t}</b></li>`).join('');
+  const logoFileId = 'YOUR_LOGO_DRIVE_FILE_ID';
+  const logoBlob = DriveApp.getFileById(logoFileId).getBlob().setName('logo.png');
+  
+  const htmlBody = `
+  <div style="font-family:Arial,sans-serif;line-height:1.6;margin:0;padding:0;color:#333;">
+    <div style="width:90%;max-width:600px;margin:20px auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+      
+      <div style="background-color:#2B5797;color:#fff;padding:20px;text-align:center;">
+        <img src="cid:logo" alt="Company Logo" style="max-height:40px;margin-bottom:10px;"><br>
+        <h2 style="margin:0;font-size:22px;">Your Daily Tasks</h2>
+      </div>
+
+      <div style="padding:25px;">
+        <p>Hello,</p>
+        <p>Here are your assigned workflow tasks for today (${dateString}):</p>
+        <ul style="padding-left:20px;margin-bottom:20px;">${htmlTaskList}</ul>
+        <p>Please access the workflow tool to complete them.</p>
+        <div style="text-align:center;margin:25px 0 15px;">
+          <a href="${appUrl}" style="background-color:#6366f1;color:#fff;text-decoration:none;padding:12px 25px;border-radius:5px;font-weight:bold;display:inline-block;">Go to Workflow Tool</a>
+        </div>
+      </div>
+
+      <div style="font-size:0.9em;color:#888;padding:15px 25px;background-color:#f9f9f9;border-top:1px solid #eee;">
+        <p>Thank you,<br>Company MI Workflow Management</p>
+        <p style="font-size:0.8em;color:#aaa;margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
+          Please do not reply to this email — this inbox is not monitored.
+        </p>
+      </div>
+
+    </div>
+  </div>`.trim();
+  
+  try {
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      body: plainTextBody, 
+      htmlBody: htmlBody,
+      inlineImages: { logo: logoBlob },
+      name: 'Company Workflow (No Reply)',
+      noReply: true // ensures it sends from noreply@company.com
+    });
+    Logger.log(`✅ Sent daily task email to ${recipientEmail} (${tasks.length} tasks).`);
+  } catch (e) {
+    Logger.log(`❌ Failed to send email to ${recipientEmail}: ${e}`);
+  }
+}
+
+/**
+ * Sends a notification email to admins about a newly added user.
+ * @param {string[]} adminEmails - Array of admin email addresses.
+ * @param {string} newUserEmail - The email address of the new user.
+ * @param {string} newUserRole - The role assigned to the new user ('Admin' or 'User').
+ * @param {string} appUrl - The URL of the web app.
+ * @param {string} addedByAdminEmail - The email of the admin who added the user.
+ */
+function sendAdminNewUserNotification(adminEmails, newUserEmail, newUserRole, appUrl, addedByAdminEmail) {
+  if (!adminEmails || adminEmails.length === 0 || !newUserEmail || !addedByAdminEmail) {
+    Logger.log("Skipping admin notification email due to missing info.");
+    return;
+  }
+
+  const subject = `New User Added to Workflow Tool: ${newUserEmail}`;
+  const recipients = adminEmails.join(',');
+  
+  const logoFileId = 'YOUR_LOGO_DRIVE_FILE_ID';
+  const logoBlob = DriveApp.getFileById(logoFileId).getBlob().setName('logo.png');
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        
+        <div style="background-color: #2B5797; color: #fff; padding: 20px; text-align: center;">
+          <img src="cid:logo" alt="Company Logo" style="max-height: 45px; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 22px;">New User Notification</h2>
+        </div>
+        
+        <div style="padding: 25px;">
+          <p>Hello Admins,</p>
+          <p>A new user has been added to the workflow tool by <b>${addedByAdminEmail}</b>.</p>
+          
+          <div style="background-color:#f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0; font-size: 1.1em;"><b>Email:</b> ${newUserEmail}</p>
+            <p style="margin: 5px 0; font-size: 1.1em;"><b>Role:</b> ${newUserRole}</p>
+          </div>
+
+          <p>You can manage users or review this change in the tool.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}" style="background-color: #6366f1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Access Workflow Tool
+            </a>
+          </div>
+        </div>
+        
+        <div style="background-color: #f9f9f9; padding: 15px 25px; font-size: 0.9em; color: #555; border-top: 1px solid #eee;">
+          <p>Thank you,<br>Company MI Workflow Management</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: recipients,
+      subject: subject,
+      htmlBody: htmlBody,
+      inlineImages: { logo: logoBlob },
+      noReply: true,
+      name: 'Company Workflow (No Reply)'
+    });
+    Logger.log(`Admin notification for new user ${newUserEmail} sent to ${recipients}`);
+  } catch (e) {
+    Logger.log(`Failed to send admin notification for ${newUserEmail}: ${e}`);
+  }
+}
+
+/**
+ * Triggered automatically when the "New Reports" sheet is changed.
+ * Sends a notification email to all Admin users about the new report row.
+ */
+function onNewReportSheetChange(e) {
+  Logger.log("onNewReportSheetChange triggered.");
+  
+  const range = e.range;
+  const sheet = range.getSheet();
+  const editedRow = range.getRow();
+  const sheetName = sheet.getName();
+
+  const columnIndices = {
+    reportName: 1,  
+    assignedUser: 2, 
+    reportType: 3,     
+    dueDate: 4     
+  };
+  
+  const firstDataRow = 2; 
+
+  if (sheetName !== NEW_REPORTS_SHEET_NAME || editedRow < firstDataRow || range.getWidth() < Object.keys(columnIndices).length || !e.value ) { 
+     if (sheetName === NEW_REPORTS_SHEET_NAME) {
+         Logger.log(`Ignoring edit on sheet "${sheetName}" row ${editedRow}. Might be header, deletion, or insufficient data.`);
+     }
+    return; 
+  }
+  
+  Logger.log(`Processing edit on sheet "${sheetName}" row ${editedRow}.`);
+  let adminEmails = [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    const rowValues = sheet.getRange(editedRow, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    Logger.log("Edited row values: " + JSON.stringify(rowValues));
+
+    const reportName = rowValues[columnIndices.reportName - 1] || 'N/A';
+    const assignedUser = rowValues[columnIndices.assignedUser - 1] || 'N/A';
+    const reportType = rowValues[columnIndices.reportType - 1] || 'N/A';
+    let dueDate = rowValues[columnIndices.dueDate - 1] || 'N/A';
+
+     if (reportName === 'N/A' || !reportName.trim()) {
+        Logger.log("Ignoring row - Report Name is missing or empty.");
+        return;
+     }
+
+    if (dueDate !== 'N/A') {
+        try {
+              let dateObj;
+              if (typeof parseDateString === 'function') {
+                  dateObj = parseDateString(dueDate);
+              } else {
+                  dateObj = new Date(dueDate);
+              }
+            if (dateObj && !isNaN(dateObj.getTime())) {
+                dueDate = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "dd/MM/yyyy");
+            }
+        } catch (dateErr) {
+            Logger.log("Could not format due date: " + dueDate);
+        }
+    }
+
+    Logger.log(`New/Edited Report: Name="${reportName}", Assigned="${assignedUser}", Due="${dueDate}"`);
+    
+    const userSheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!userSheet) {
+      Logger.log(`onNewReportSheetChange Error: Sheet "${USERS_SHEET_NAME}" not found.`);
+      return;
+    }
+    
+    const userData = userSheet.getRange('A2:B' + userSheet.getLastRow()).getValues();
+    adminEmails = userData
+      .filter(row => row[1] && row[1].toLowerCase() === 'admin' && row[0])
+      .map(row => row[0].trim());
+      
+    if (adminEmails.length === 0) {
+      Logger.log("onNewReportSheetChange Warning: No 'Admin' users found to email.");
+      return;
+    }
+    
+    Logger.log("Admins to notify: " + adminEmails.join(', '));
+    
+    const appUrl = ScriptApp.getService().getUrl();
+    const subject = `New Report Added/Edited in '${NEW_REPORTS_SHEET_NAME}': ${reportName}`;
+    const body = `
+      <p>Hello Admins,</p>
+      <p>A report has been added or edited in the "${NEW_REPORTS_SHEET_NAME}" sheet:</p>
+      <ul>
+        <li><b>Report Name:</b> ${reportName}</li>
+        <li><b>Assigned User:</b> ${assignedUser}</li>
+        <li><b>Report Type:</b> ${reportType}</li>
+        <li><b>Due Date:</b> ${dueDate}</li>
+      </ul>
+      <p>This may require review or further action in the workflow tool.</p>
+      
+      <p>You can view and manage reports in the tool:</p>
+      <p><a href="${appUrl}">Workflow Management Tool</a></p>
+      <br>
+      <p>Thank you,</p>
+      <p>Company MI Workflow Management</p>
+    `;
+    
+    MailApp.sendEmail(adminEmails.join(','), subject, "", {
+      noReply: true,
+      htmlBody: body,
+      name: 'Company Workflow (No Reply)'
+    });
+    Logger.log("Notification email sent successfully for row " + editedRow);
+
+  } catch (error) {
+    Logger.log(`onNewReportSheetChange Error processing row ${editedRow}: ${error.toString()} Stack: ${error.stack}`);
+  }
+}
+
+/**
+ * Sends a notification email to Admin users about a newly routed report.
+ * @param {string} reportName The name of the new report.
+ * @param {string} assignedUser The user assigned in the 'New Reports' sheet.
+ * @param {string} dueDate The due date string from the 'New Reports' sheet.
+ */
+function sendNewReportAdminNotification(reportName, assignedUser, dueDate) {
+  Logger.log(`Attempting to send notification for new report: ${reportName}`);
+  let adminEmails = [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    const userSheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!userSheet) {
+      Logger.log(`sendNewReportAdminNotification Error: Sheet "${USERS_SHEET_NAME}" not found.`);
+      return;
+    }
+    const userData = userSheet.getRange('A2:B' + userSheet.getLastRow()).getValues();
+    adminEmails = userData
+      .filter(row => row[1] && row[1].toLowerCase() === 'admin' && row[0])
+      .map(row => row[0].trim());
+      
+    if (adminEmails.length === 0) {
+      Logger.log("sendNewReportAdminNotification Warning: No 'Admin' users found to email.");
+      return;
+    }
+    Logger.log("Admins to notify: " + adminEmails.join(', '));
+    
+    const appUrl = ScriptApp.getService().getUrl();
+    reportName = reportName || 'N/A';
+    assignedUser = assignedUser || 'N/A';
+    dueDate = dueDate || 'N/A';
+    
+    if (dueDate !== 'N/A') {
+        try {
+            let dateObj;
+              if (typeof parseDateString === 'function') { 
+                  dateObj = parseDateString(dueDate);
+              } else {
+                  dateObj = new Date(dueDate);
+              }
+            if (dateObj && !isNaN(dateObj.getTime())) {
+                dueDate = Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "dd/MM/yyyy");
+            }
+        } catch (dateErr) {
+            Logger.log("Could not format due date for email: " + dueDate);
+        }
+    }
+
+    const subject = `New Workflow Report Created & Routed: ${reportName}`;
+    const body = `
+      <p>Hello Admins,</p>
+      <p>A new report submitted via the form has been automatically routed to 'Report List' and 'Default Users':</p>
+      <ul>
+        <li><b>Report Name:</b> ${reportName}</li>
+        <li><b>Default Assigned User:</b> ${assignedUser}</li>
+        <li><b>Due Date:</b> ${dueDate}</li>
+      </ul>
+      <p>You can view and manage reports in the tool:</p>
+      <p><a href="${appUrl}">Workflow Management Tool</a></p>
+      <br>
+      <p>Thank you,</p>
+      <p>Company MI Workflow Management</p>
+    `;
+    
+    MailApp.sendEmail(adminEmails.join(','), subject, "", {
+      noReply: true,
+      htmlBody: body,
+      name: 'Company Workflow (No Reply)'
+    });
+    Logger.log("New report notification email sent successfully.");
+
+  } catch (error) {
+    Logger.log(`sendNewReportAdminNotification Error: ${error.toString()} Stack: ${error.stack}`);
+  }
+}
+
+// --- CONFIGURATION FOR DROPDOWN ---
+const FORM_ID = 'YOUR_FORM_ID_HERE';
+const DROPDOWN_TITLE = 'By default who is assigned this work? (email address)';
+const USER_SHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+// --- END CONFIGURATION ---
+
+/**
+ * Fetches users from the Sheet and updates a dropdown in a specific Google Form.
+ * This is called by other functions (like addUser) when the user list changes.
+ */
+function updateDropdownFromSheet() {
+  try {
+    const sheet = SpreadsheetApp.openById(USER_SHEET_ID).getSheetByName('Users');
+    const values = sheet.getRange('A2:A').getValues();
+
+    const userList = values
+      .map(row => row[0])        
+      .filter(item => item !== "");
+
+    if (userList.length === 0) {
+      Logger.log('updateDropdownFromSheet: No users found in range.');
+      return; 
+    }
+
+    const form = FormApp.openById(FORM_ID);
+    let dropdownItem = null;
+    const items = form.getItems(FormApp.ItemType.LIST);
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].getTitle() === DROPDOWN_TITLE) {
+        dropdownItem = items[i].asListItem();
+        break; 
+      }
+    }
+
+   if (dropdownItem) {
+      dropdownItem.setChoiceValues(userList);
+      Logger.log('Dropdown successfully updated with ' + userList.length + ' users.');
+    } else {
+      Logger.log('Error: Could not find dropdown question with title: ' + DROPDOWN_TITLE);
+    }
+
+  } catch (e) {
+    Logger.log('Error in updateDropdownFromSheet: ' + e.message);
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
+// --- NEW: WORKFLOW REPORT MANAGEMENT (adds functionality for new HTML tab) ---
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Returns report names (Col A) and URLs (Col K) from the 'Report List' sheet.
+ */
+function getWorkflowReportList() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(REPORT_LIST_SHEET_NAME);
+  if (!sheet) throw new Error(`Sheet "${REPORT_LIST_SHEET_NAME}" not found.`);
+  
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const data = sheet.getRange('A2:K' + lastRow).getValues();
+  return data.map(row => ({
+    reportName: row[0],
+    reportLink: row[10] || ''
+  })).filter(r => r.reportName);
+}
+
+/**
+ * Updates only Column K (the report URL) for a given report name in Column A.
+ */
+function updateReportLink({ reportName, newUrl }) {
+  const userInfo = getUserInfo();
+  if (!userInfo.isAdmin) throw new Error("Permission denied. Only admins can update report URLs.");
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(REPORT_LIST_SHEET_NAME);
+  if (!sheet) throw new Error(`Sheet "${REPORT_LIST_SHEET_NAME}" not found.`);
+
+  const names = sheet.getRange('A2:A' + sheet.getLastRow()).getValues().flat();
+  const idx = names.findIndex(n => n && n.toString().trim() === reportName.trim());
+  
+  if (idx === -1) throw new Error('Report not found: ' + reportName);
+
+  sheet.getRange(idx + 2, 11).setValue(newUrl);
+  Logger.log(`Updated report URL for "${reportName}" to "${newUrl}"`);
+  return true;
+}
+
+/**
+ * Gets all links from the "Useful Links" sheet.
+ * @returns {object[]} An array of objects, e.g., [{name: 'Google', url: 'https://google.com'}].
+ */
+function getUsefulLinks() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USEFUL_LINKS_SHEET_NAME);
+    if (!sheet) {
+      const newSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(USEFUL_LINKS_SHEET_NAME);
+      newSheet.appendRow(['Link Name', 'URL']);
+      return []; 
+    }
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return []; 
+
+    return sheet.getRange('A2:B' + lastRow).getValues().map(row => ({
+      name: row[0],
+      url: row[1] || ''
+    })).filter(link => link.name);
+    
+  } catch (e) {
+    console.error('Error in getUsefulLinks:', e);
+    throw new Error('Could not retrieve useful links. Please ensure a "Useful Links" sheet exists.');
+  }
+}
+
+/**
+ * Updates the URL for a specific link name in "Useful Links".
+ * @param {object} linkData - {name: 'Link Name', newUrl: 'https://newurl.com'}.
+ */
+function updateUsefulLink(linkData) {
+  if (!linkData || !linkData.name) {
+    throw new Error("Invalid link data provided.");
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USEFUL_LINKS_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${USEFUL_LINKS_SHEET_NAME}" not found.`);
+
+    const names = sheet.getRange('A2:A' + sheet.getLastRow()).getDisplayValues().flat();
+    const rowIndex = names.findIndex(name => name.trim().toLowerCase() === linkData.name.trim().toLowerCase());
+
+    if (rowIndex === -1) {
+      throw new Error(`Link "${linkData.name}" not found.`);
+    }
+
+    sheet.getRange(rowIndex + 2, 2).setValue(linkData.newUrl || '');
+    return "Link updated.";
+    
+  } catch (e) {
+    console.error('Error in updateUsefulLink:', e);
+    throw new Error(e.message || 'Failed to update link.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Adds a new link to the "Useful Links" sheet.
+ * @param {object} linkData - {name: 'New Link', url: 'https://url.com'}.
+ */
+function addUsefulLink(linkData) {
+  if (!linkData || !linkData.name || !linkData.url) {
+    throw new Error("Both link name and URL are required.");
+  }
+  
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USEFUL_LINKS_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${USEFUL_LINKS_SHEET_NAME}" not found.`);
+    
+    const names = sheet.getRange('A2:A' + sheet.getLastRow()).getDisplayValues().flat();
+    const exists = names.some(name => name.trim().toLowerCase() === linkData.name.trim().toLowerCase());
+    
+    if (exists) {
+      throw new Error(`A link with the name "${linkData.name}" already exists.`);
+    }
+
+    sheet.appendRow([linkData.name, linkData.url]);
+    return "Link added successfully.";
+  } catch (e) {
+    console.error('Error in addUsefulLink:', e);
+    throw new Error(e.message || 'Failed to add link.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Deletes a link from the "Useful Links" sheet.
+ * @param {string} linkName - The name of the link to delete.
+ */
+function deleteUsefulLink(linkName) {
+  if (!linkName) {
+    throw new Error("Link name is required.");
+  }
+  
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USEFUL_LINKS_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${USEFUL_LINKS_SHEET_NAME}" not found.`);
+
+    const names = sheet.getRange('A2:A' + sheet.getLastRow()).getDisplayValues().flat();
+    const rowIndex = names.findIndex(name => name.trim().toLowerCase() === linkName.trim().toLowerCase());
+
+    if (rowIndex === -1) {
+      throw new Error(`Link "${linkName}" not found.`);
+    }
+
+    sheet.deleteRow(rowIndex + 2); 
+    return "Link deleted.";
+  } catch (e) {
+    console.error('Error in deleteUsefulLink:', e);
+    throw new Error(e.message || 'Failed to delete link.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Gets a list of user emails from the 'Users' sheet, EXCLUDING admins.
+ * @returns {string[]} An array of non-admin user email addresses.
+ */
+function getNonAdminUsers() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) throw new Error(`Sheet "${USERS_SHEET_NAME}" not found.`);
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    return sheet.getRange('A2:B' + lastRow).getValues()
+      .filter(row => row[1] !== 'Admin' && row[0]) 
+      .map(row => row[0]);
+      
+  } catch (e) {
+    console.error('Error in getNonAdminUsers:', e);
+    throw new Error('Could not retrieve non-admin user list.');
+  }
+}
+
+/**
+ * Automatically cleans log entries older than 6 months from the 'Log' sheet.
+ * This should be run on a time-driven trigger (e.g., monthly).
+ */
+function cleanOldLogs() {
+  const LOG_RETENTION_MONTHS = 6;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LOG_SHEET_NAME);
+  
+  if (!sheet) {
+    Logger.log("cleanOldLogs: Log sheet not found. Exiting.");
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) { 
+    Logger.log("cleanOldLogs: Log sheet is empty. Exiting.");
+    return;
+  }
+
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth() - LOG_RETENTION_MONTHS, now.getDate());
+  const cutoffTime = cutoffDate.getTime();
+  Logger.log(`cleanOldLogs: Deleting log entries older than ${cutoffDate.toISOString()}`);
+  
+  const timestamps = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  let rowsDeleted = 0;
+  
+  for (let i = timestamps.length - 1; i >= 0; i--) {
+    try {
+      const timestamp = new Date(timestamps[i][0]);
+      if (!isNaN(timestamp.getTime()) && timestamp.getTime() < cutoffTime) {
+        sheet.deleteRow(i + 2);
+        rowsDeleted++;
+      }
+    } catch (e) {
+      Logger.log(`cleanOldLogs: Error parsing date in row ${i + 2}. Error: ${e}`);
+    }
+  }
+  Logger.log(`cleanOldLogs: Completed. Deleted ${rowsDeleted} old log entries.`);
+}
+
+/**
+ * Sends a daily summary email at 3 PM to all Admins.
+ * UPDATED: 'Outstanding' items are now at the top for better visibility.
+ * 'Completed' items are at the bottom and visually de-emphasized.
+ */
+function sendDailyReportSummary() {
+  // --- 1. Weekend check ---
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    Logger.log("Skipping daily summary: It's the weekend.");
+    return;
+  }
+
+  const timeZone = Session.getScriptTimeZone();
+  const today = Utilities.formatDate(now, timeZone, "yyyy-MM-dd");
+  const todayDisplay = Utilities.formatDate(now, timeZone, "dd/MM/yyyy");
+  
+  // --- 2. Get Admin Emails ---
+  const userSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(USERS_SHEET_NAME);
+  if (!userSheet) return;
+  
+  const userData = userSheet.getRange('A2:B' + userSheet.getLastRow()).getValues();
+  const adminEmails = userData
+    .filter(row => row[1] && row[1].toLowerCase() === 'admin' && row[0])
+    .map(row => row[0]);
+    
+  if (adminEmails.length === 0) return;
+
+  // --- 3. Get Report Data ---
+  let allReports;
+  try {
+    allReports = getReportData(); 
+  } catch (e) {
+    MailApp.sendEmail(adminEmails.join(','), `FAILED: Daily Report Summary`, `Error: ${e}`);
+    return;
+  }
+
+  // --- 4. Sort Reports ---
+  const completedReports = [];
+  const outstandingReports = [];
+  
+  allReports.forEach(report => {
+    if (report.nextRunDate === today) {
+      const assignedUser = report.allocatedTo || 'Unassigned';
+      const comments = report.comments || '';
+      const dueTime = report.dueTime || '';
+
+      if (report.completedDate) {
+        const timeMatch = report.completedDate.match(/(\d{2}:\d{2}):\d{2}$/);
+        const timePart = timeMatch ? timeMatch[1] : 'Unknown Time';
+        completedReports.push({ name: report.reportName, completedTime: timePart, assignedTo: assignedUser, comments });
+      } else {
+        outstandingReports.push({ name: report.reportName, assignedTo: assignedUser, comments, dueTime });
+      }
+    }
+  });
+  
+  // --- 5. Assets ---
+  const publicLogoUrl = 'https://via.placeholder.com/150x50?text=Company+Logo';
+  let logoBlob = null;
+  try {
+      logoBlob = UrlFetchApp.fetch(publicLogoUrl).getBlob().setName('logo.png');
+  } catch (e) { logoBlob = null; }
+
+  // --- 6. Build HTML (LAYOUT UPDATED) ---
+  
+  // Outstanding List (Actionable items first)
+  const outstandingList = outstandingReports.length > 0
+      ? `<ul style="padding-left:20px; margin-top:5px;">${outstandingReports
+          .map(r => `<li style="margin-bottom:8px;">
+                      <strong>${r.name}</strong><br>
+                      <span style="font-size:0.9em; color:#d32f2f;">Assigned: ${r.assignedTo} ${r.dueTime ? '(Due: '+r.dueTime+')' : ''}</span>
+                      ${r.comments ? `<br><span style="font-size:0.85em; color:#555; font-style:italic;">Note: ${r.comments}</span>` : ''}
+                   </li>`)
+          .join('')}</ul>`
+      : `<p style="color:#2e7d32; font-style:italic;">✅ All reports due today are complete. Great job!</p>`;
+
+  // Completed List (De-emphasized style)
+  const completedList = completedReports.length > 0
+      ? `<ul style="padding-left:20px; color:#666; font-size:0.9em;">${completedReports
+          .map(r => `<li style="margin-bottom:4px;">${r.name} - ${r.assignedTo} <span style="font-size:0.8em; color:#999;">(${r.completedTime})</span></li>`)
+          .join('')}</ul>`
+      : `<p style="color:#666; font-style:italic;">No reports completed yet today.</p>`;
+      
+  const htmlBody = `
+  <div style="font-family:Segoe UI, Arial, sans-serif; line-height:1.5; color:#333;">
+    <div style="max-width:650px; margin:0 auto; border:1px solid #e0e0e0; border-radius:8px; overflow:hidden;">
+      
+      <div style="background-color:#004B87; color:#fff; padding:20px; text-align:center;">
+        ${logoBlob ? '<img src="cid:logo" alt="Company" style="height:35px; margin-bottom:10px;"><br>' : ''}
+        <h2 style="margin:0; font-size:20px; font-weight:600;">Daily Status Report</h2>
+        <p style="margin:5px 0 0; font-size:14px; opacity:0.9;">${todayDisplay}</p>
+      </div>
+
+      <div style="padding:25px;">
+        
+        <h3 style="color:#D83B01; border-bottom:2px solid #D83B01; padding-bottom:5px; margin-top:0;">
+          ⚠️ Outstanding Reports (${outstandingReports.length})
+        </h3>
+        ${outstandingList}
+
+        <br>
+
+        <div style="text-align:center; margin:20px 0;">
+          <a href="${WEB_APP_URL}" style="background-color:#004B87; color:#fff; text-decoration:none; padding:12px 30px; border-radius:4px; font-weight:bold; font-size:14px;">
+            Open Workflow Tool
+          </a>
+        </div>
+
+        <br>
+
+        <h3 style="color:#2e7d32; border-bottom:1px solid #e0e0e0; padding-bottom:5px; font-size:16px;">
+          ✅ Completed Reports (${completedReports.length})
+        </h3>
+        <div style="background-color:#f9f9f9; padding:10px; border-radius:4px;">
+          ${completedList}
+        </div>
+
+      </div>
+
+      <div style="background-color:#f5f5f5; color:#888; padding:15px; text-align:center; font-size:12px;">
+        Company MI Workflow Automation
+      </div>
+    </div>
+  </div>`;
+
+  // --- 7. Send ---
+  MailApp.sendEmail({
+    to: adminEmails.join(','),
+    subject: `Daily Report Summary - ${todayDisplay}`,
+    htmlBody: htmlBody,
+    inlineImages: logoBlob ? { logo: logoBlob } : {},
+    name: 'Company Workflow',
+    noReply: true
+  });
+}
+
+/**
+ * Sends a welcome email to a newly added user with an inline logo.
+ * @param {string} newUserEmail - The email address of the new user.
+ * @param {string} appUrl - The URL of the web app.
+ * @param {string} adminEmail - The email of the admin who added the user.
+ */
+function sendNewUserWelcomeEmail(newUserEmail, appUrl, adminEmail) {
+  if (!newUserEmail || !appUrl || !adminEmail) {
+    Logger.log("Skipping welcome email due to missing info.");
+    return;
+  }
+
+  const subject = "Welcome to the Company Workflow Tool";
+
+  const logoFileId = 'YOUR_LOGO_DRIVE_FILE_ID'; 
+  const logoBlob = DriveApp.getFileById(logoFileId).getBlob().setName('logo.png');
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <div style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        
+        <div style="background-color: #2B5797; color: #fff; padding: 20px; text-align: center;">
+          <img src="cid:logo" alt="Company Logo" style="max-height: 45px; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 22px;">Welcome to the Workflow Tool</h2>
+        </div>
+        
+        <div style="padding: 25px;">
+          <p>Hello,</p>
+          <p>You have been added to the <b>Company MI Workflow Management Tool</b> by <b>${adminEmail}</b>.</p>
+          <p>You can use this tool to view, manage, and complete your assigned workflow tasks.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}" style="background-color: #6366f1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Access Workflow Tool
+            </a>
+          </div>
+        </div>
+        
+        <div style="background-color: #f9f9f9; padding: 15px 25px; font-size: 0.9em; color: #555; border-top: 1px solid #eee;">
+          <p>Thank you,<br>Company MI Workflow Management</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: newUserEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      inlineImages: { logo: logoBlob },
+      noReply: true,
+      name: 'Company Workflow (No Reply)',
+    });
+    Logger.log(`Welcome email successfully sent to ${newUserEmail}`);
+  } catch (e) {
+    Logger.log(`Failed to send welcome email to ${newUserEmail}: ${e}`);
+  }
+}
+
+/**
+ * Directly updates the 'Allocated To' column (B) in the 'Report List' sheet for a specific report.
+ * Admin only.
+ * @param {string|object} reportName The name of the report to update (or an object containing it).
+ * @param {string} userEmail The email address to set in Column B. Can be empty to clear.
+ */
+function updateReportListAllocation(reportName, userEmail) {
+  let reportNameString = reportName;
+  if (typeof reportName === 'object' && reportName !== null && reportName.reportName) {
+    Logger.log('updateReportListAllocation: Received an object, extracting .reportName property.');
+    reportNameString = reportName.reportName;
+  } else if (typeof reportName === 'object') {
+    Logger.log(`updateReportListAllocation: Received an invalid object: ${JSON.stringify(reportName)}`);
+    throw new Error("Invalid data received. Expected a report name string.");
+  }
+
+  if (!getUserInfo().isAdmin) {
+    Logger.log(`updateReportListAllocation: Permission denied for user ${Session.getActiveUser().getEmail()} trying to update ${reportNameString}`);
+    throw new Error("Permission denied. Only admins can directly update allocations.");
+  }
+
+  if (!reportNameString) {
+     Logger.log("updateReportListAllocation: Called with empty report name.");
+     throw new Error("Report name cannot be empty.");
+  }
+
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const reportListSheet = ss.getSheetByName(REPORT_LIST_SHEET_NAME);
+    if (!reportListSheet) {
+      Logger.log(`updateReportListAllocation: Sheet "${REPORT_LIST_SHEET_NAME}" not found.`);
+      throw new Error(`Sheet "${REPORT_LIST_SHEET_NAME}" not found.`);
+    }
+
+    const reportNames = reportListSheet.getRange('A2:A' + reportListSheet.getLastRow()).getDisplayValues().flat();
+    const searchReportName = reportNameString.trim();
+    
+    const rowIndex = reportNames.findIndex(name => (name || '').toString().trim() === searchReportName);
+    
+    if (rowIndex === -1) {
+       Logger.log(`updateReportListAllocation: Report "${searchReportName}" not found in "Report List".`);
+       throw new Error(`Report "${searchReportName}" not found in "Report List".`);
+    }
+
+    const rowToUpdate = rowIndex + 2;
+
+    reportListSheet.getRange(rowToUpdate, ALLOCATED_TO_COLUMN).setValue(userEmail || '');
+    Logger.log(`updateReportListAllocation: Successfully updated "${searchReportName}" (Row ${rowToUpdate}) to "${userEmail || ''}" in Report List.`);
+  } catch (e) {
+    Logger.log(`updateReportListAllocation: ERROR updating report "${reportNameString}" - ${e.toString()}`);
+    console.error(`Error in updateReportListAllocation for report ${reportNameString}:`, e);
+    throw new Error(e.message || 'Failed to update allocation in Report List.');
+  }
+}
+
+/**
+ * Runs overnight via a time-driven trigger.
+ * 1. Calls resetDailyReports() to clear comments and completion data.
+ * 2. Calls updateDailyAllocation() to run the full, smart allocation.
+ */
+function runOvernightMasterReset() {
+  Logger.log("--- STARTING OVERNIGHT MASTER RESET ---");
+  
+  try {
+    resetDailyReports();
+    Logger.log("Step 1/2: resetDailyReports() completed. Comments and timestamps cleared.");
+  } catch (e) {
+    Logger.log(`CRITICAL: Step 1 (resetDailyReports) FAILED: ${e}. Aborting master reset.`);
+    return; 
+  }
+
+  try {
+    updateDailyAllocation();
+    Logger.log("Step 2/2: updateDailyAllocation() completed. Allocations are set.");
+  } catch (e) {
+    Logger.log(`CRITICAL: Step 2 (updateDailyAllocation) FAILED: ${e}.`);
+  }
+  
+  Logger.log("--- FINISHED OVERNIGHT MASTER RESET ---");
+}
+
+/**
+ * Fetches data for the Key Info Dashboard from the "Dashboards" tab.
+ * Returns 3 separate arrays for Demand, DSV, and Certificates.
+ */
+function getKeyInfoData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Dashboards");
+    
+    if (!sheet) {
+      console.error("Sheet 'Dashboards' not found.");
+      return null;
+    }
+
+    return {
+      demand: sheet.getRange("A3:G40").getDisplayValues(),
+      dsv: sheet.getRange("A44:F48").getDisplayValues(),
+      certs: sheet.getRange("A52:F56").getDisplayValues()
+    };
+  } catch (e) {
+    console.error("Error fetching Key Info Data:", e);
+    throw new Error("Could not load dashboard data.");
+  }
+}
