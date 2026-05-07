@@ -36,7 +36,7 @@ Leave/Cover Management: A scheduling engine that allows admins to set temporary 
 Optimistic Data Locking: Prevents data collision by checking if a row has been modified by another user before executing a save.
 
 📸 Live KPI Dashboard
-Markdown format: ![KPI Dashboard](path/to/your/kpi-image.png)
+Markdown format: ![KPI Dashboard](https://github.com/CraigPitt/team-workflow-management/blob/main/WorkflowappKPIS.PNG)
 
 💻 Tech Stack & Architecture
 This application operates on a serverless architecture within Google Workspace:
