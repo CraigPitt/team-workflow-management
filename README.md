@@ -6,7 +6,7 @@ This repository contains the front-end and back-end code for a bespoke, full-sta
 Note: This is a sanitized version of a production application. All proprietary company data, internal URLs, and identifiable user information have been redacted or replaced with dummy variables.
 
 📸 Application Interface
-Markdown format: ![Main Workflow Dashboard](path/to/your/image.png)
+Markdown format: ![Main Workflow Dashboard](https://github.com/CraigPitt/team-workflow-management/blob/main/Workflowapp.png)
 
 🚨 The Problem
 For years, operational managers and analysts were losing hours of their week to a decentralized, highly manual reporting process. Work allocation was tracked across multiple disconnected spreadsheets, task handover (cover for absence) required manual tracking, and reminding users of their outstanding tasks involved drafting repetitive daily emails.
